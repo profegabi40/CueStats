@@ -800,6 +800,182 @@ textarea:focus-visible {
     setTimeout(fixPresentationalElements, 500);
     setTimeout(fixPresentationalElements, 1000);
 })();
+
+// Ensure all page content is contained by landmarks
+(function() {
+    const ensureLandmarks = function() {
+        // Find or create main landmark for primary content
+        let mainElement = document.querySelector('main, [role="main"]');
+        
+        if (!mainElement) {
+            // Create main landmark
+            mainElement = document.createElement('main');
+            mainElement.setAttribute('role', 'main');
+            mainElement.setAttribute('id', 'main-content');
+            
+            // Find the main content area (typically .stMainBlockContainer or .block-container)
+            const mainContainer = document.querySelector('.stMainBlockContainer, .main .block-container, [data-testid="stAppViewContainer"] > section > div');
+            
+            if (mainContainer) {
+                // Wrap main container in main element
+                const parent = mainContainer.parentNode;
+                parent.insertBefore(mainElement, mainContainer);
+                mainElement.appendChild(mainContainer);
+            }
+        }
+        
+        // Ensure sidebar is properly marked as navigation or complementary
+        const sidebar = document.querySelector('.stSidebar, [data-testid="stSidebar"]');
+        if (sidebar && !sidebar.getAttribute('role')) {
+            sidebar.setAttribute('role', 'navigation');
+            sidebar.setAttribute('aria-label', 'Main navigation');
+        }
+        
+        // Wrap specific failing elements in landmarks if not already contained
+        const failingSelectors = [
+            '.st-bc',
+            '.st-key-use_interactive_tables',
+            '.st-emotion-cache-3pwa5w.stElementContainer',
+            'div[aria-label="Choose Data Input Method:"]',
+            '._profileContainer_gzau3_53'
+        ];
+        
+        failingSelectors.forEach(function(selector) {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(function(element) {
+                // Check if element is already within a landmark
+                const isInLandmark = element.closest('main, nav, aside, header, footer, [role="main"], [role="navigation"], [role="complementary"], [role="banner"], [role="contentinfo"], [role="region"][aria-label], [role="region"][aria-labelledby]');
+                
+                if (!isInLandmark) {
+                    // Determine appropriate landmark based on context
+                    let landmark = null;
+                    
+                    // Check if in sidebar
+                    const isInSidebar = element.closest('.stSidebar, [data-testid="stSidebar"]');
+                    if (isInSidebar) {
+                        // Already handled by sidebar navigation landmark
+                        return;
+                    }
+                    
+                    // Check if it's a profile container (complementary content)
+                    if (element.classList.contains('_profileContainer_gzau3_53') || element.className.includes('profileContainer')) {
+                        landmark = document.createElement('aside');
+                        landmark.setAttribute('role', 'complementary');
+                        landmark.setAttribute('aria-label', 'User profile');
+                    } else {
+                        // Default to main content region
+                        // Check if main element exists and is accessible
+                        const main = document.querySelector('main, [role="main"]');
+                        if (main) {
+                            // Move element into main if it's not already there
+                            if (!main.contains(element)) {
+                                main.appendChild(element);
+                            }
+                            return;
+                        } else {
+                            // Create a region landmark
+                            landmark = document.createElement('section');
+                            landmark.setAttribute('role', 'region');
+                            landmark.setAttribute('aria-label', 'Content section');
+                        }
+                    }
+                    
+                    // Wrap element in landmark
+                    if (landmark) {
+                        const parent = element.parentNode;
+                        parent.insertBefore(landmark, element);
+                        landmark.appendChild(element);
+                    }
+                }
+            });
+        });
+        
+        // Ensure any floating content is in a landmark
+        const allContentDivs = document.querySelectorAll('.stElementContainer, .element-container, [data-testid*="element"]');
+        allContentDivs.forEach(function(div) {
+            const isInLandmark = div.closest('main, nav, aside, header, footer, [role="main"], [role="navigation"], [role="complementary"], [role="banner"], [role="contentinfo"], [role="region"][aria-label], [role="region"][aria-labelledby]');
+            
+            if (!isInLandmark && div.textContent.trim().length > 0) {
+                // Check if it's in the main app view
+                const isInMainView = div.closest('[data-testid="stAppViewContainer"]');
+                if (isInMainView) {
+                    // Ensure main element exists
+                    let main = document.querySelector('main, [role="main"]');
+                    if (!main) {
+                        main = document.createElement('main');
+                        main.setAttribute('role', 'main');
+                        const appView = document.querySelector('[data-testid="stAppViewContainer"]');
+                        if (appView) {
+                            const firstChild = appView.firstChild;
+                            appView.insertBefore(main, firstChild);
+                        }
+                    }
+                    
+                    // Move to main if not already there
+                    if (main && !main.contains(div)) {
+                        main.appendChild(div);
+                    }
+                }
+            }
+        });
+        
+        // Add skip navigation link target
+        const skipTarget = document.getElementById('main-content');
+        if (!skipTarget && mainElement) {
+            mainElement.setAttribute('id', 'main-content');
+            mainElement.setAttribute('tabindex', '-1');
+        }
+        
+        // Ensure header/banner landmark if Streamlit header exists
+        const header = document.querySelector('header, [data-testid="stHeader"]');
+        if (header && !header.getAttribute('role')) {
+            header.setAttribute('role', 'banner');
+        }
+        
+        // Mark footer as contentinfo if it exists
+        const footer = document.querySelector('footer, [data-testid="stFooter"]');
+        if (footer && !footer.getAttribute('role')) {
+            footer.setAttribute('role', 'contentinfo');
+        }
+    };
+    
+    // Run immediately
+    ensureLandmarks();
+    
+    // Run after DOM is fully loaded
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', ensureLandmarks);
+    } else {
+        ensureLandmarks();
+    }
+    
+    // Run on load
+    if (window.addEventListener) {
+        window.addEventListener('load', ensureLandmarks);
+    }
+    
+    // Monitor for dynamically added content
+    if (typeof MutationObserver !== 'undefined') {
+        const observer = new MutationObserver(function(mutations) {
+            // Only run if significant changes occurred
+            let shouldRun = false;
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes.length > 0) {
+                    shouldRun = true;
+                }
+            });
+            if (shouldRun) {
+                ensureLandmarks();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+    
+    // Run on Streamlit reruns
+    setTimeout(ensureLandmarks, 500);
+    setTimeout(ensureLandmarks, 1000);
+    setTimeout(ensureLandmarks, 2000);
+})();
 </script>
 """, unsafe_allow_html=True)
 
