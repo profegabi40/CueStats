@@ -680,6 +680,126 @@ textarea:focus-visible {
         fixViewport();
     }
 })();
+
+// Ensure presentational elements don't have ARIA attributes or tabindex
+(function() {
+    const fixPresentationalElements = function() {
+        // Find all elements with presentational roles
+        const presentationalElements = document.querySelectorAll('[role="presentation"], [role="none"]');
+        
+        presentationalElements.forEach(function(element) {
+            // Remove global ARIA attributes
+            const ariaAttributes = [
+                'aria-label', 'aria-labelledby', 'aria-describedby', 
+                'aria-hidden', 'aria-live', 'aria-atomic', 'aria-relevant',
+                'aria-busy', 'aria-controls', 'aria-current', 'aria-details',
+                'aria-disabled', 'aria-dropeffect', 'aria-errormessage',
+                'aria-flowto', 'aria-grabbed', 'aria-haspopup', 'aria-invalid',
+                'aria-keyshortcuts', 'aria-owns', 'aria-roledescription'
+            ];
+            
+            ariaAttributes.forEach(function(attr) {
+                if (element.hasAttribute(attr)) {
+                    element.removeAttribute(attr);
+                }
+            });
+            
+            // Remove tabindex
+            if (element.hasAttribute('tabindex')) {
+                element.removeAttribute('tabindex');
+            }
+        });
+        
+        // Specifically fix .st-emotion-cache-15nprkh elements
+        const emotionElements = document.querySelectorAll('.st-emotion-cache-15nprkh, [class*="st-emotion-cache"]');
+        
+        emotionElements.forEach(function(element) {
+            // Check if element has presentational role
+            const role = element.getAttribute('role');
+            if (role === 'presentation' || role === 'none') {
+                // Remove ARIA attributes
+                const attributes = element.attributes;
+                for (let i = attributes.length - 1; i >= 0; i--) {
+                    const attrName = attributes[i].name;
+                    if (attrName.startsWith('aria-')) {
+                        element.removeAttribute(attrName);
+                    }
+                }
+                
+                // Remove tabindex
+                element.removeAttribute('tabindex');
+            }
+            
+            // If element has ARIA attributes but is purely decorative, consider adding role="presentation"
+            // (but only if it's truly decorative - be conservative here)
+        });
+        
+        // Fix any decorative images that might have incorrect ARIA
+        const decorativeImages = document.querySelectorAll('img[role="presentation"], img[role="none"], img[alt=""]');
+        decorativeImages.forEach(function(img) {
+            // Ensure presentational images don't have conflicting ARIA
+            if (img.getAttribute('role') === 'presentation' || img.getAttribute('role') === 'none' || img.getAttribute('alt') === '') {
+                // Set role to presentation if alt is empty
+                if (img.getAttribute('alt') === '' && !img.getAttribute('role')) {
+                    img.setAttribute('role', 'presentation');
+                }
+                
+                // Remove ARIA attributes from decorative images
+                const ariaAttrs = ['aria-label', 'aria-labelledby', 'aria-describedby'];
+                ariaAttrs.forEach(function(attr) {
+                    if (img.hasAttribute(attr)) {
+                        img.removeAttribute(attr);
+                    }
+                });
+                
+                // Remove tabindex from decorative images
+                img.removeAttribute('tabindex');
+            }
+        });
+        
+        // Fix SVG elements marked as presentational
+        const presentationalSvgs = document.querySelectorAll('svg[role="presentation"], svg[role="none"]');
+        presentationalSvgs.forEach(function(svg) {
+            // Remove ARIA attributes
+            const attributes = svg.attributes;
+            for (let i = attributes.length - 1; i >= 0; i--) {
+                const attrName = attributes[i].name;
+                if (attrName.startsWith('aria-')) {
+                    svg.removeAttribute(attrName);
+                }
+            }
+            
+            // Remove tabindex
+            svg.removeAttribute('tabindex');
+            
+            // Ensure focusable is false for IE
+            svg.setAttribute('focusable', 'false');
+        });
+    };
+    
+    // Run immediately
+    fixPresentationalElements();
+    
+    // Run on load
+    if (window.addEventListener) {
+        window.addEventListener('load', fixPresentationalElements);
+    }
+    
+    // Monitor for dynamically added elements
+    if (typeof MutationObserver !== 'undefined') {
+        const observer = new MutationObserver(fixPresentationalElements);
+        observer.observe(document.body, { 
+            childList: true, 
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['role', 'class']
+        });
+    }
+    
+    // Run on Streamlit reruns
+    setTimeout(fixPresentationalElements, 500);
+    setTimeout(fixPresentationalElements, 1000);
+})();
 </script>
 """, unsafe_allow_html=True)
 
