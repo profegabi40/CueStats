@@ -18,6 +18,14 @@ st.title("CueStats: STAT C1000 Analysis Tool")
 
 # Inject CSS to style tables globally: solid black borders, bold headers, auto-fit columns
 st.markdown("""
+<noscript>
+<div style="padding: 2rem; text-align: center; background-color: #fff3cd; border: 2px solid #ffc107; margin: 1rem;">
+<h1>JavaScript Required</h1>
+<p><strong>CueStats requires JavaScript to function.</strong></p>
+<p>Please enable JavaScript in your browser settings to use this application.</p>
+<p>For accessibility assistance without JavaScript, please contact support.</p>
+</div>
+</noscript>
 <style>
 /* Apply to Streamlit-rendered tables and pandas Styler HTML tables */
 div[data-testid="stDataFrame"] table, div[data-testid="stTable"] table, .stMarkdown table {
@@ -804,6 +812,17 @@ textarea:focus-visible {
 // Ensure all page content is contained by landmarks
 (function() {
     const ensureLandmarks = function() {
+        // First, ensure body has proper structure with explicit regions
+        const body = document.body;
+        if (body && !body.querySelector('[role="banner"]')) {
+            // Add banner role to header area
+            const appHeader = document.querySelector('header, [data-testid="stHeader"]');
+            if (appHeader) {
+                appHeader.setAttribute('role', 'banner');
+                appHeader.setAttribute('aria-label', 'Site header');
+            }
+        }
+        
         // Find or create main landmark for primary content
         let mainElement = document.querySelector('main, [role="main"]');
         
@@ -812,6 +831,7 @@ textarea:focus-visible {
             mainElement = document.createElement('main');
             mainElement.setAttribute('role', 'main');
             mainElement.setAttribute('id', 'main-content');
+            mainElement.setAttribute('aria-label', 'Main content');
             
             // Find the main content area (typically .stMainBlockContainer or .block-container)
             const mainContainer = document.querySelector('.stMainBlockContainer, .main .block-container, [data-testid="stAppViewContainer"] > section > div');
@@ -826,9 +846,33 @@ textarea:focus-visible {
         
         // Ensure sidebar is properly marked as navigation or complementary
         const sidebar = document.querySelector('.stSidebar, [data-testid="stSidebar"]');
-        if (sidebar && !sidebar.getAttribute('role')) {
-            sidebar.setAttribute('role', 'navigation');
-            sidebar.setAttribute('aria-label', 'Main navigation');
+        if (sidebar) {
+            if (!sidebar.getAttribute('role')) {
+                sidebar.setAttribute('role', 'navigation');
+            }
+            if (!sidebar.getAttribute('aria-label')) {
+                sidebar.setAttribute('aria-label', 'Main navigation');
+            }
+        }
+        
+        // Create complementary region for any aside content
+        const asideContent = document.querySelector('aside:not([role])');
+        if (asideContent) {
+            asideContent.setAttribute('role', 'complementary');
+            if (!asideContent.getAttribute('aria-label')) {
+                asideContent.setAttribute('aria-label', 'Supplementary content');
+            }
+        }
+        
+        // Ensure footer has contentinfo role
+        const footerElement = document.querySelector('footer, [data-testid="stFooter"]');
+        if (footerElement) {
+            if (!footerElement.getAttribute('role')) {
+                footerElement.setAttribute('role', 'contentinfo');
+            }
+            if (!footerElement.getAttribute('aria-label')) {
+                footerElement.setAttribute('aria-label', 'Site footer');
+            }
         }
         
         // Wrap specific failing elements in landmarks if not already contained
@@ -975,6 +1019,17 @@ textarea:focus-visible {
     setTimeout(ensureLandmarks, 500);
     setTimeout(ensureLandmarks, 1000);
     setTimeout(ensureLandmarks, 2000);
+    
+    // Verification: Log landmark status
+    setTimeout(function() {
+        const landmarks = document.querySelectorAll('main, nav, aside, header, footer, [role="main"], [role="navigation"], [role="complementary"], [role="banner"], [role="contentinfo"], [role="region"][aria-label]');
+        console.log('Accessibility: Found ' + landmarks.length + ' landmarks on page');
+        landmarks.forEach(function(landmark) {
+            const role = landmark.getAttribute('role') || landmark.tagName.toLowerCase();
+            const label = landmark.getAttribute('aria-label') || 'no label';
+            console.log('  - ' + role + ': ' + label);
+        });
+    }, 3000);
 })();
 
 // Ensure proper heading structure for screen readers
