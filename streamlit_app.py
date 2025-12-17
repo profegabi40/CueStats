@@ -155,6 +155,107 @@ textarea:focus-visible {
         observer.observe(document.body, { childList: true, subtree: true });
     }
 })();
+
+// Fix accessible names for Streamlit toolbar and menu buttons
+(function() {
+    const fixButtonNames = function() {
+        // Fix toolbar action buttons
+        const toolbarButtons = document.querySelectorAll('.stToolbarActionButton button, [data-testid="stToolbarActionButton"] button');
+        toolbarButtons.forEach(function(button, index) {
+            if (!button.getAttribute('aria-label') && !button.getAttribute('title')) {
+                // Try to get text content
+                const textContent = button.textContent.trim();
+                if (textContent) {
+                    button.setAttribute('aria-label', textContent);
+                } else {
+                    // Check for common toolbar buttons by their position/class
+                    const parentDiv = button.closest('[data-testid="stToolbarActionButton"]');
+                    if (parentDiv) {
+                        const svgIcon = button.querySelector('svg');
+                        if (svgIcon) {
+                            // Common Streamlit toolbar buttons
+                            if (index === 0) {
+                                button.setAttribute('aria-label', 'Settings');
+                            } else if (index === 1) {
+                                button.setAttribute('aria-label', 'Menu options');
+                            } else {
+                                button.setAttribute('aria-label', 'Toolbar action ' + (index + 1));
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Fix main menu buttons
+        const menuButtons = document.querySelectorAll('#MainMenu button, [data-testid="stBaseButton-header"] button, [data-testid="stBaseButton-headerNoPadding"] button');
+        menuButtons.forEach(function(button) {
+            if (!button.getAttribute('aria-label') && !button.getAttribute('title')) {
+                const textContent = button.textContent.trim();
+                if (textContent) {
+                    button.setAttribute('aria-label', textContent);
+                } else {
+                    // Check if it's the hamburger menu button
+                    const svgIcon = button.querySelector('svg');
+                    if (svgIcon) {
+                        const parent = button.closest('#MainMenu');
+                        if (parent) {
+                            button.setAttribute('aria-label', 'Open main menu');
+                        }
+                    }
+                }
+            }
+            
+            // Ensure button role is set
+            if (!button.getAttribute('role')) {
+                button.setAttribute('role', 'button');
+            }
+        });
+        
+        // Fix buttons with kind="header" or kind="headerNoPadding"
+        const headerButtons = document.querySelectorAll('[kind="header"] button, [kind="headerNoPadding"] button');
+        headerButtons.forEach(function(button) {
+            if (!button.getAttribute('aria-label') && !button.getAttribute('title')) {
+                const textContent = button.textContent.trim();
+                if (textContent) {
+                    button.setAttribute('aria-label', textContent);
+                } else {
+                    button.setAttribute('aria-label', 'Menu button');
+                }
+            }
+        });
+        
+        // Fix any button within emotion-cache divs that don't have accessible names
+        const emotionButtons = document.querySelectorAll('[class*="emotion-cache"] button');
+        emotionButtons.forEach(function(button) {
+            if (!button.getAttribute('aria-label') && !button.textContent.trim() && !button.getAttribute('title')) {
+                // Check for nearby text or icons
+                const ariaLabel = button.getAttribute('data-testid') || 
+                                 button.closest('[data-testid]')?.getAttribute('data-testid') || 
+                                 'Button';
+                button.setAttribute('aria-label', ariaLabel.replace(/([A-Z])/g, ' $1').trim());
+            }
+        });
+    };
+    
+    // Run immediately
+    fixButtonNames();
+    
+    // Run on load
+    if (window.addEventListener) {
+        window.addEventListener('load', fixButtonNames);
+    }
+    
+    // Monitor for dynamically added buttons
+    if (typeof MutationObserver !== 'undefined') {
+        const observer = new MutationObserver(fixButtonNames);
+        observer.observe(document.body, { childList: true, subtree: true, attributes: false });
+    }
+    
+    // Also run on Streamlit reruns (after a short delay)
+    setTimeout(fixButtonNames, 500);
+    setTimeout(fixButtonNames, 1000);
+})();
 </script>
 """, unsafe_allow_html=True)
 
