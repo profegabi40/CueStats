@@ -615,6 +615,71 @@ textarea:focus-visible {
     setTimeout(fixLinkText, 1000);
     setTimeout(fixLinkText, 2000);
 })();
+
+// Ensure viewport meta tag allows text scaling and zooming
+(function() {
+    const fixViewport = function() {
+        // Find the viewport meta tag
+        let viewportMeta = document.querySelector('meta[name="viewport"]');
+        
+        if (viewportMeta) {
+            // Get current content
+            let content = viewportMeta.getAttribute('content') || '';
+            
+            // Remove any restrictions on scaling
+            // Remove user-scalable=no or user-scalable=0
+            content = content.replace(/user-scalable\s*=\s*(no|0)/gi, 'user-scalable=yes');
+            
+            // Remove restrictive maximum-scale (anything less than 5.0)
+            content = content.replace(/maximum-scale\s*=\s*[0-4](\.\d+)?/gi, 'maximum-scale=5.0');
+            
+            // Remove minimum-scale restrictions that are greater than 1.0
+            content = content.replace(/minimum-scale\s*=\s*[2-9](\.\d+)?/gi, 'minimum-scale=1.0');
+            
+            // If user-scalable wasn't present, add it
+            if (!content.includes('user-scalable')) {
+                content += ', user-scalable=yes';
+            }
+            
+            // Ensure maximum-scale is at least 5.0 if not present
+            if (!content.includes('maximum-scale')) {
+                content += ', maximum-scale=5.0';
+            }
+            
+            // Clean up any double commas
+            content = content.replace(/,\s*,/g, ',').trim();
+            
+            // Remove leading comma if present
+            if (content.startsWith(',')) {
+                content = content.substring(1).trim();
+            }
+            
+            // Update the viewport meta tag
+            viewportMeta.setAttribute('content', content);
+        } else {
+            // If no viewport meta tag exists, create one with proper settings
+            viewportMeta = document.createElement('meta');
+            viewportMeta.setAttribute('name', 'viewport');
+            viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, user-scalable=yes, maximum-scale=5.0');
+            
+            // Insert into head
+            const head = document.head || document.getElementsByTagName('head')[0];
+            if (head) {
+                head.appendChild(viewportMeta);
+            }
+        }
+    };
+    
+    // Run immediately - viewport needs to be fixed as early as possible
+    fixViewport();
+    
+    // Also run on DOMContentLoaded to ensure it's applied
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fixViewport);
+    } else {
+        fixViewport();
+    }
+})();
 </script>
 """, unsafe_allow_html=True)
 
