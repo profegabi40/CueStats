@@ -16,7 +16,7 @@ except Exception:
 st.set_page_config(layout="wide", page_title="CueStats")
 st.title("CueStats: STAT C1000 Analysis Tool")
 
-# Inject CSS to style tables globally: solid black borders, bold headers, auto-fit columns
+# Inject noscript warning
 st.markdown("""
 <noscript>
 <div style="padding: 2rem; text-align: center; background-color: #fff3cd; border: 2px solid #ffc107; margin: 1rem;">
@@ -26,6 +26,10 @@ st.markdown("""
 <p>For accessibility assistance without JavaScript, please contact support.</p>
 </div>
 </noscript>
+""", unsafe_allow_html=True)
+
+# Inject CSS to style tables globally: solid black borders, bold headers, auto-fit columns
+st.markdown("""
 <style>
 /* Apply to Streamlit-rendered tables and pandas Styler HTML tables */
 div[data-testid="stDataFrame"] table, div[data-testid="stTable"] table, .stMarkdown table {
@@ -174,6 +178,10 @@ textarea:focus-visible {
   opacity: 1 !important;
 }
 </style>
+""", unsafe_allow_html=True)
+
+# Inject JavaScript for accessibility fixes
+st.markdown("""
 <script>
 // Fix ARIA attributes on Streamlit iframes
 (function() {
