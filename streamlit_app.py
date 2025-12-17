@@ -308,6 +308,152 @@ textarea:focus-visible {
     setTimeout(fixButtonNames, 500);
     setTimeout(fixButtonNames, 1000);
 })();
+
+// Ensure every form element has a proper label
+(function() {
+    const fixFormLabels = function() {
+        // Fix file uploader input
+        const fileInputs = document.querySelectorAll('input[data-testid="stFileUploaderDropzoneInput"]');
+        fileInputs.forEach(function(input) {
+            // Check if it already has a label
+            const inputId = input.id || 'file-upload-' + Math.random().toString(36).substr(2, 9);
+            input.id = inputId;
+            
+            // Check if label exists
+            let label = document.querySelector('label[for="' + inputId + '"]');
+            if (!label) {
+                // Look for nearby label text
+                const container = input.closest('[data-testid="stFileUploader"]');
+                if (container) {
+                    const labelText = container.querySelector('label, .stFileUploader label');
+                    if (labelText && labelText.textContent.trim()) {
+                        // Associate existing label with input
+                        labelText.setAttribute('for', inputId);
+                    } else {
+                        // Create a new label
+                        label = document.createElement('label');
+                        label.setAttribute('for', inputId);
+                        label.textContent = 'Choose a file to upload';
+                        label.style.position = 'absolute';
+                        label.style.left = '-10000px';
+                        label.style.width = '1px';
+                        label.style.height = '1px';
+                        label.style.overflow = 'hidden';
+                        input.parentNode.insertBefore(label, input);
+                    }
+                }
+            }
+            
+            // Ensure aria-label as backup
+            if (!input.getAttribute('aria-label') && !input.getAttribute('aria-labelledby')) {
+                const container = input.closest('[data-testid="stFileUploader"]');
+                if (container) {
+                    const headingText = container.querySelector('p, label, div');
+                    const labelText = headingText ? headingText.textContent.trim() : 'File upload';
+                    input.setAttribute('aria-label', labelText || 'Choose a file to upload');
+                }
+            }
+        });
+        
+        // Fix any other unlabeled inputs
+        const allInputs = document.querySelectorAll('input:not([type="hidden"])');
+        allInputs.forEach(function(input) {
+            // Skip if already has label association or aria-label
+            if (input.getAttribute('aria-label') || 
+                input.getAttribute('aria-labelledby') || 
+                document.querySelector('label[for="' + input.id + '"]')) {
+                return;
+            }
+            
+            // Try to find associated label by proximity
+            const parentLabel = input.closest('label');
+            if (parentLabel) {
+                // Input is inside a label, which is valid
+                return;
+            }
+            
+            // Look for Streamlit's label structure
+            const stWidget = input.closest('[data-testid*="stText"], [data-testid*="stNumber"], [data-testid*="stSelect"]');
+            if (stWidget) {
+                const widgetLabel = stWidget.querySelector('label');
+                if (widgetLabel && widgetLabel.textContent.trim()) {
+                    // Create unique ID if needed
+                    if (!input.id) {
+                        input.id = 'input-' + Math.random().toString(36).substr(2, 9);
+                    }
+                    widgetLabel.setAttribute('for', input.id);
+                } else if (!input.getAttribute('aria-label')) {
+                    // Fallback: add aria-label based on context
+                    const testId = stWidget.getAttribute('data-testid');
+                    input.setAttribute('aria-label', testId ? testId.replace(/^st/, '').replace(/([A-Z])/g, ' $1').trim() : 'Input field');
+                }
+            }
+        });
+        
+        // Fix textareas
+        const textareas = document.querySelectorAll('textarea');
+        textareas.forEach(function(textarea) {
+            if (!textarea.getAttribute('aria-label') && 
+                !textarea.getAttribute('aria-labelledby') && 
+                !document.querySelector('label[for="' + textarea.id + '"]')) {
+                
+                const stWidget = textarea.closest('[data-testid*="stText"]');
+                if (stWidget) {
+                    const widgetLabel = stWidget.querySelector('label');
+                    if (widgetLabel && widgetLabel.textContent.trim()) {
+                        if (!textarea.id) {
+                            textarea.id = 'textarea-' + Math.random().toString(36).substr(2, 9);
+                        }
+                        widgetLabel.setAttribute('for', textarea.id);
+                    } else {
+                        textarea.setAttribute('aria-label', 'Text input area');
+                    }
+                }
+            }
+        });
+        
+        // Fix select elements
+        const selects = document.querySelectorAll('select');
+        selects.forEach(function(select) {
+            if (!select.getAttribute('aria-label') && 
+                !select.getAttribute('aria-labelledby') && 
+                !document.querySelector('label[for="' + select.id + '"]')) {
+                
+                const stWidget = select.closest('[data-testid*="stSelect"]');
+                if (stWidget) {
+                    const widgetLabel = stWidget.querySelector('label');
+                    if (widgetLabel && widgetLabel.textContent.trim()) {
+                        if (!select.id) {
+                            select.id = 'select-' + Math.random().toString(36).substr(2, 9);
+                        }
+                        widgetLabel.setAttribute('for', select.id);
+                    } else {
+                        select.setAttribute('aria-label', 'Select option');
+                    }
+                }
+            }
+        });
+    };
+    
+    // Run immediately
+    fixFormLabels();
+    
+    // Run on load
+    if (window.addEventListener) {
+        window.addEventListener('load', fixFormLabels);
+    }
+    
+    // Monitor for dynamically added form elements
+    if (typeof MutationObserver !== 'undefined') {
+        const observer = new MutationObserver(fixFormLabels);
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+    
+    // Run on Streamlit reruns
+    setTimeout(fixFormLabels, 500);
+    setTimeout(fixFormLabels, 1000);
+    setTimeout(fixFormLabels, 2000);
+})();
 </script>
 """, unsafe_allow_html=True)
 
