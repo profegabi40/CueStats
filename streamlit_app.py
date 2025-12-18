@@ -4110,24 +4110,17 @@ elif selected_tab == "Linear Regression":
                 if not lr_x_axis_selector: raise ValueError("Please select an X-axis variable.")
                 if not lr_y_axis_selector: raise ValueError("Please select a Y-axis variable.")
 
-                df_name_x, col_name_x = lr_x_axis_selector.split(': ', 1)
-                df_name_y, col_name_y = lr_y_axis_selector.split(': ', 1)
+                source_df = st.session_state.global_dataframes.get('active_data')
+                if source_df is None: raise ValueError("No active dataframe found. Please load data first.")
 
-                if df_name_x != df_name_y:
-                    raise ValueError("X and Y variables must come from the same DataFrame for Linear Regression.")
-
-                source_df = st.session_state.global_dataframes.get(df_name_x)
-                if source_df is None: raise ValueError(f"DataFrame '{df_name_x}' not found.")
-
-                # Use get_data_from_col_string which also handles dropping NaNs and type conversion
-                x_data = get_data_from_col_string(lr_x_axis_selector)
-                y_data = get_data_from_col_string(lr_y_axis_selector)
+                if lr_x_axis_selector not in source_df.columns: raise ValueError(f"Column '{lr_x_axis_selector}' not found in active dataframe.")
+                if lr_y_axis_selector not in source_df.columns: raise ValueError(f"Column '{lr_y_axis_selector}' not found in active dataframe.")
 
                 # Ensure that x_data and y_data correspond to the same rows after cleaning
                 # This is important if original DataFrame had NaNs at different positions.
                 # Re-create a temporary DataFrame to align indices and drop NaNs commonly.
-                combined_data = pd.DataFrame({'x': pd.to_numeric(source_df[col_name_x], errors='coerce'),
-                                              'y': pd.to_numeric(source_df[col_name_y], errors='coerce')}).dropna()
+                combined_data = pd.DataFrame({'x': pd.to_numeric(source_df[lr_x_axis_selector], errors='coerce'),
+                                              'y': pd.to_numeric(source_df[lr_y_axis_selector], errors='coerce')}).dropna()
                 if combined_data.empty:
                     raise ValueError("No common numeric data points found for X and Y axes after cleaning.")
 
@@ -4136,8 +4129,8 @@ elif selected_tab == "Linear Regression":
 
                 r_value, r_squared, regression_equation, fig = perform_linear_regression_analysis(
                     cleaned_x, cleaned_y,
-                    title=f'Linear Regression: {col_name_y} vs {col_name_x}',
-                    xlabel=col_name_x, ylabel=col_name_y
+                    title=f'Linear Regression: {lr_y_axis_selector} vs {lr_x_axis_selector}',
+                    xlabel=lr_x_axis_selector, ylabel=lr_y_axis_selector
                 )
 
                 st.write(f"**Correlation Coefficient (r)**: {r_value:.4f}")
@@ -4145,7 +4138,7 @@ elif selected_tab == "Linear Regression":
                 st.write(f"**Regression Equation**: {regression_equation}")
                 st.pyplot(fig)
                 # Accessibility: Add text alternative for screen readers
-                st.caption(f"Linear regression scatter plot with fitted line. X-axis: {col_name_x}, Y-axis: {col_name_y}. "
+                st.caption(f"Linear regression scatter plot with fitted line. X-axis: {lr_x_axis_selector}, Y-axis: {lr_y_axis_selector}. "
                           f"Correlation r={r_value:.4f}, R²={r_squared:.4f}. {regression_equation}")
             except ValueError as ve:
                 st.error(f"Input Error: {ve}")
