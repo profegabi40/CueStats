@@ -3429,9 +3429,8 @@ elif selected_tab == "Hypothesis Testing":
             group_data_cols = []
             for i in range(int(num_groups)):
                 col_key = f"ht_anova_group_data_col_{i+1}"
-                # Ensure we have a valid default index
-                default_index = i if i < len(numeric_cols) else 0
-                selected_col = st.selectbox(f'Select Group {i+1} Data Column', options=numeric_cols, index=default_index, key=col_key)
+                # Default to empty selection (index 0 is the empty string '')
+                selected_col = st.selectbox(f'Select Group {i+1} Data Column', options=numeric_cols, index=0, key=col_key)
                 group_data_cols.append(selected_col)
             params['group_data_cols'] = group_data_cols
 
