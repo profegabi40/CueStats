@@ -4051,12 +4051,13 @@ elif selected_tab == "Visualizations":
                         fig = plot_box_plot(data, title=f'Box Plot of {col_label}', ylabel=col_label, horizontal=plot_options.get('horizontal', False))
                 elif plot_type == 'Bar Plot':
                     if not x_axis_col: raise ValueError("Please select a data column for the bar plot.")
-                    df_name, col_name = x_axis_col.split(': ', 1)
-                    df = st.session_state.global_dataframes.get(df_name)
-                    if df is None: raise ValueError(f"DataFrame '{df_name}' not found.")
-                    data = df[col_name].dropna() # Bar plot can use non-numeric directly
-                    if data.empty: raise ValueError(f"Selected column '{col_name}' is empty after dropping NaNs.")
-                    fig = plot_bar_plot(data, title=f'Bar Plot of {col_name}', xlabel=col_name, stacked=plot_options.get('stacked', False), use_relative=plot_options.get('use_relative', False))
+                    # Get data using the active dataframe
+                    df = st.session_state.global_dataframes.get('active_data')
+                    if df is None: raise ValueError("No active dataframe found. Please load data first.")
+                    if x_axis_col not in df.columns: raise ValueError(f"Column '{x_axis_col}' not found in active dataframe.")
+                    data = df[x_axis_col].dropna() # Bar plot can use non-numeric directly
+                    if data.empty: raise ValueError(f"Selected column '{x_axis_col}' is empty after dropping NaNs.")
+                    fig = plot_bar_plot(data, title=f'Bar Plot of {x_axis_col}', xlabel=x_axis_col, stacked=plot_options.get('stacked', False), use_relative=plot_options.get('use_relative', False))
                 elif plot_type == 'Dot Plot':
                     if not x_axis_col: raise ValueError("Please select a data column for the dot plot.")
                     data = get_data_from_col_string(x_axis_col)
