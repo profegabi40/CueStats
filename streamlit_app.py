@@ -4065,22 +4065,22 @@ elif selected_tab == "Visualizations":
                     fig = plot_dot_plot(data, title=f'Dot Plot of {col_label}', xlabel=col_label)
                 elif plot_type == 'Scatter Plot':
                     if not x_axis_col or not y_axis_col: raise ValueError("Please select both X and Y axis variables.")
-                    df_name_x, col_name_x = x_axis_col.split(': ', 1)
-                    df_name_y, col_name_y = y_axis_col.split(': ', 1)
-                    if df_name_x != df_name_y: raise ValueError("For Scatter Plot, X and Y variables must come from the same DataFrame.")
                     
-                    source_df = st.session_state.global_dataframes.get(df_name_x)
-                    if source_df is None: raise ValueError(f"DataFrame '{df_name_x}' not found.")
+                    source_df = st.session_state.global_dataframes.get('active_data')
+                    if source_df is None: raise ValueError("No active dataframe found. Please load data first.")
+                    
+                    if x_axis_col not in source_df.columns: raise ValueError(f"Column '{x_axis_col}' not found in active dataframe.")
+                    if y_axis_col not in source_df.columns: raise ValueError(f"Column '{y_axis_col}' not found in active dataframe.")
 
                     combined_series = pd.DataFrame({
-                        'x_val': pd.to_numeric(source_df[col_name_x], errors='coerce'),
-                        'y_val': pd.to_numeric(source_df[col_name_y], errors='coerce')
+                        'x_val': pd.to_numeric(source_df[x_axis_col], errors='coerce'),
+                        'y_val': pd.to_numeric(source_df[y_axis_col], errors='coerce')
                     }).dropna()
 
                     if combined_series.empty:
                         raise ValueError("No common numeric data points found for X and Y axes after cleaning.")
                     
-                    fig = plot_scatter_plot(combined_series['x_val'], combined_series['y_val'], title=f'Scatter Plot: {col_name_x} vs {col_name_y}', xlabel=col_name_x, ylabel=col_name_y)
+                    fig = plot_scatter_plot(combined_series['x_val'], combined_series['y_val'], title=f'Scatter Plot: {x_axis_col} vs {y_axis_col}', xlabel=x_axis_col, ylabel=y_axis_col)
 
                 if fig is not None:
                     st.pyplot(fig)
