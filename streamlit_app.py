@@ -1318,13 +1318,16 @@ def calculate_normal_distribution(mean, std_dev, x=None, a=None, b=None, calc_ty
     if calc_type == 'pdf':
         if x is None: raise ValueError("For PDF calculation, 'x' must be provided.")
         return dist.pdf(x)
-    elif calc_type == 'cdf':
+    elif calc_type in ['cdf', 'cdf_strict']:
+        # For continuous distributions, P(X < a) = P(X ≤ a)
         if x is None: raise ValueError("For CDF calculation, 'x' must be provided.")
         return dist.cdf(x)
-    elif calc_type == 'survival':
+    elif calc_type in ['survival', 'survival_strict']:
+        # For continuous distributions, P(X > a) = P(X ≥ a)
         if x is None: raise ValueError("For survival function calculation, 'x' must be provided.")
         return dist.sf(x)
-    elif calc_type == 'interval':
+    elif calc_type in ['interval', 'interval_inclusive']:
+        # For continuous distributions, P(a < X < b) = P(a ≤ X ≤ b)
         if a is None or b is None: raise ValueError("For interval calculation, 'a' and 'b' must be provided.")
         if a >= b: raise ValueError("For interval calculation, 'a' must be less than 'b'.")
         return dist.cdf(b) - dist.cdf(a)
@@ -1371,7 +1374,8 @@ def calculate_chi_square_distribution(df, x=None, a=None, b=None, calc_type='pdf
     elif calc_type in ['survival', 'survival_strict']:
         if x is None: raise ValueError("For survival function calculation, 'x' must be provided.")
         return dist.sf(x)
-    elif calc_type == 'interval':
+    elif calc_type in ['interval', 'interval_inclusive']:
+        # For continuous distributions, P(a < X < b) = P(a ≤ X ≤ b)
         if a is None or b is None: raise ValueError("For interval calculation, 'a' and 'b' must be provided.")
         if a >= b: raise ValueError("For interval calculation, 'a' must be less than 'b'.")
         return dist.cdf(b) - dist.cdf(a)
@@ -1389,7 +1393,8 @@ def calculate_student_t_distribution(df, x=None, a=None, b=None, calc_type='pdf'
     elif calc_type in ['survival', 'survival_strict']:
         if x is None: raise ValueError("For survival function calculation, 'x' must be provided.")
         return dist.sf(x)
-    elif calc_type == 'interval':
+    elif calc_type in ['interval', 'interval_inclusive']:
+        # For continuous distributions, P(a < X < b) = P(a ≤ X ≤ b)
         if a is None or b is None: raise ValueError("For interval calculation, 'a' and 'b' must be provided.")
         if a >= b: raise ValueError("For interval calculation, 'a' must be less than 'b'.")
         return dist.cdf(b) - dist.cdf(a)
@@ -1408,7 +1413,8 @@ def calculate_f_distribution(dfn, dfd, x=None, a=None, b=None, calc_type='pdf'):
     elif calc_type in ['survival', 'survival_strict']:
         if x is None: raise ValueError("For survival function calculation, 'x' must be provided.")
         return dist.sf(x)
-    elif calc_type == 'interval':
+    elif calc_type in ['interval', 'interval_inclusive']:
+        # For continuous distributions, P(a < X < b) = P(a ≤ X ≤ b)
         if a is None or b is None: raise ValueError("For interval calculation, 'a' and 'b' must be provided.")
         if a >= b: raise ValueError("For interval calculation, 'a' must be less than 'b'.")
         return dist.cdf(b) - dist.cdf(a)
