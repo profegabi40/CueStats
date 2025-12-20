@@ -3418,6 +3418,9 @@ elif selected_tab == "Hypothesis Testing":
             
             # Convert table to string format for compatibility with existing code
             params['contingency_table'] = ';'.join([','.join([str(val) for val in row]) for row in table_data])
+            # Store row and column names for labeled output
+            params['row_names'] = row_names
+            params['col_names'] = col_names
 
     elif selected_ht_type == 'ANOVA (Analysis of Variance) F-test':
         # Only Raw Data Input
@@ -3584,10 +3587,18 @@ elif selected_tab == "Hypothesis Testing":
                     for row in rows:
                         table.append([float(val.strip()) for val in row.split(',')])
                     test_statistic, p_value, degrees_freedom, expected_frequencies = chi_square_test_of_independence(table)
+                    
+                    # Create labeled DataFrames using user-provided row and column names
+                    row_names = params.get('row_names', [f"Row {i+1}" for i in range(len(table))])
+                    col_names = params.get('col_names', [f"Col {j+1}" for j in range(len(table[0]))])
+                    
+                    observed_df = pd.DataFrame(table, index=row_names, columns=col_names)
+                    expected_df = pd.DataFrame(expected_frequencies, index=row_names, columns=col_names)
+                    
                     st.write(f"**Observed Frequencies:**")
-                    st.write(np.array(table))
+                    show_table(observed_df)
                     st.write(f"**Expected Frequencies:**")
-                    st.write(np.array(expected_frequencies).round(2))
+                    show_table(expected_df.round(2))
                     st.write(f"**Degrees of Freedom:** {degrees_freedom}")
 
             elif selected_ht_type == 'ANOVA (Analysis of Variance) F-test':
