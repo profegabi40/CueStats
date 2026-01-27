@@ -2168,7 +2168,7 @@ if selected_tab == "Data Input":
 
     if input_method == "Upload File":
         st.subheader("Upload Data File")
-        uploaded_file = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
+        uploaded_file = st.file_uploader("Choose a CSV or Excel file", type=None)
     elif input_method == "Google Sheets":
         st.subheader("Import from Google Sheets")
         st.markdown("""
@@ -2242,13 +2242,24 @@ if selected_tab == "Data Input":
     if uploaded_file is not None:
         try:
             file_name = uploaded_file.name
-            file_extension = file_name.split('.')[-1].lower()
+            file_extension = file_name.split('.')[-1].lower().strip()
             df = None
 
             if file_extension == 'csv':
                 df = pd.read_csv(uploaded_file)
-            elif file_extension == 'xlsx':
-                df = pd.read_excel(uploaded_file)
+            elif file_extension in ['xlsx', 'xls']:
+                try:
+                    uploaded_file.seek(0)  # Reset file pointer to beginning
+                    df = pd.read_excel(uploaded_file, engine='openpyxl')
+                except ImportError as ie:
+                    st.error(f"Error: openpyxl is not installed. Details: {str(ie)}")
+                    df = None
+                except Exception as e:
+                    st.error(f"Error reading Excel file: {str(e)}")
+                    df = None
+            else:
+                st.error(f"Unsupported file type: '{file_extension}'. Please upload a CSV or Excel (.xlsx/.xls) file.")
+                df = None
 
             if df is not None:
                 # Reset index to start at 1 instead of 0
