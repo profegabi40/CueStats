@@ -109,6 +109,29 @@ Data Type: Numeric
 Values: 85, 92, 78, 88, 95, 82
 ```
 
+### Option 3: Auto-Loading from Google Sheets (Easiest!)
+
+Your instructor can share data with you using a special link that automatically loads the data:
+
+**If your instructor gives you a CueStat link with data:**
+1. Click the link your instructor provided
+2. The data will load automatically—no typing or uploading needed!
+3. You'll see a preview of the data
+4. You're ready to analyze!
+
+**How it works:**
+- Your instructor publishes their Google Sheet as CSV
+- They create a special link that includes the sheet
+- You click the link and the app loads the data instantly
+- This is the fastest way to get started with an assignment!
+
+**Example link:**
+```
+https://cuestat.streamlit.app?sheets_url=https://docs.google.com/spreadsheets/...
+```
+
+When you click this link, the data appears automatically!
+
 ### Viewing Your Data
 
 Once you've loaded or entered data:

@@ -18,9 +18,24 @@ CueStat serves as an **educational statistics platform** that enables students a
 ## ✨ Key Features
 
 ### 📥 Data Input
-- **File Upload**: Support for CSV, Excel, and Google Sheets
+- **File Upload**: Support for CSV, Excel files
+- **Google Sheets**: Direct import from published Google Sheets with **automatic link loading**
+  - Share a Google Sheet with one click using auto-loading links
+  - Students click a link and data loads instantly—no manual URL entry needed
 - **Manual Entry**: Built-in spreadsheet-style data editor
 - **Single Dataframe Architecture**: Simplified workflow with one active dataset
+
+#### 🔗 Auto-Loading Google Sheets (NEW!)
+Teachers can now share Google Sheets data with students via a single auto-loading link:
+
+1. **Publish your Google Sheet** as CSV in Google Sheets (File → Share → Publish to web, select CSV format)
+2. **Create an auto-loading link** by appending the published URL as a query parameter:
+   ```
+   https://your-cuestat-url.com?sheets_url=<your-published-sheet-csv-url>
+   ```
+3. **Share the link** with students—when they click it, data loads automatically!
+
+**Example use case**: A teacher publishes their class dataset as a Google Sheet and shares the auto-loading link in the syllabus. Students click once and the data is ready for analysis—no need to download files or paste URLs.
 
 ### 📈 Descriptive Statistics
 - Comprehensive summary statistics (mean, median, mode, std, variance, quartiles, etc.)

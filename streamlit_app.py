@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
+import re
+import urllib.parse
 from scipy import stats
 import matplotlib.pyplot as plt # Added for plotting
 import logging
@@ -2153,10 +2155,68 @@ def safe_rerun():
         except Exception:
             pass
 
+# --- Helper Function for Auto-Loading Google Sheets ---
+def load_google_sheets_from_url(sheets_url):
+    """Attempt to load a Google Sheets CSV from a URL."""
+    try:
+        # Handle regular Google Sheets share links and convert them to CSV export URLs
+        url_to_use = sheets_url
+        
+        # If it's a regular share link, convert it to CSV export URL
+        if '/edit' in sheets_url and '/spreadsheets/d/' in sheets_url:
+            # Extract the sheet ID from regular share links
+            match = re.search(r'/spreadsheets/d/([a-zA-Z0-9-_]+)', sheets_url)
+            if match:
+                sheet_id = match.group(1)
+                # Convert to CSV export URL
+                url_to_use = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+        
+        with st.spinner("Loading data from Google Sheets..."):
+            df = pd.read_csv(url_to_use)
+            
+            if df is not None and not df.empty:
+                # Reset index to start at 1 instead of 0
+                df.index = range(1, len(df) + 1)
+                df.index.name = None
+                # Replace any existing dataframe with the new one
+                st.session_state.global_dataframes = {'active_data': df}
+                return df, None
+            else:
+                return None, "The Google Sheet appears to be empty. Please check that your sheet contains data and try again."
+    except pd.errors.ParserError as pe:
+        return None, f"Unable to parse the data from Google Sheets. {pe}"
+    except Exception as e:
+        return None, f"Error loading Google Sheets: {e}"
+
 # --- Main Content Area ---
 
 if selected_tab == "Data Input":
     st.header("Data Input")
+
+    # Check for auto-load Google Sheets URL in query parameters
+    query_params = st.query_params
+    auto_load_url = query_params.get('sheets_url', None)
+    
+    if auto_load_url:
+        st.info("📋 **Auto-loading data from Google Sheets link...**", icon="ℹ️")
+        df, error = load_google_sheets_from_url(auto_load_url)
+        
+        if df is not None and not df.empty:
+            st.success(f"✅ Successfully loaded data from Google Sheets! Loaded {len(df)} rows and {len(df.columns)} columns.")
+            st.write("**Preview of Loaded Data:**")
+            show_table(df)
+            st.markdown("---")
+            st.write("You can now proceed to analyze this data using the tabs above, or load different data below.")
+        else:
+            st.error(f"❌ {error}")
+            st.info("""
+            💡 **Troubleshooting steps:**
+            - Verify the sheet is published to the web (File → Share → Publish to web)
+            - Ensure you selected 'Comma-separated values (.csv)' as the format
+            - Check that the URL starts with https://docs.google.com/spreadsheets/
+            - Make sure the sheet is not restricted or private
+            - Try copying the publish link again
+            """)
 
     # Create tabs for different input methods
     input_method = st.radio(
@@ -2230,6 +2290,42 @@ if selected_tab == "Data Input":
                         """)
             else:
                 st.warning("⚠️ Required field: Please enter a Google Sheets URL in the field above before clicking Load.")
+        
+        # Auto-loading link section
+        st.divider()
+        st.subheader("📤 Create an Auto-Loading Link (Optional)")
+        st.markdown("""
+        Want to share your Google Sheet so others can load it with one click? Create an auto-loading link:
+        
+        1. First, get your Google Sheet publish URL from above
+        2. Then, create a link in this format and share it with others:
+        """)
+        
+        if sheets_url:
+            # Generate the auto-loading URL
+            encoded_sheets_url = urllib.parse.quote(sheets_url, safe='')
+            
+            st.markdown(f"""
+            **Example auto-loading link format:**
+            ```
+            https://your-cuestat-url.com?sheets_url={encoded_sheets_url}
+            ```
+            
+            To create your auto-loading link:
+            1. Replace `https://your-cuestat-url.com` with your actual CueStat app URL
+            2. The URL above includes your Google Sheets link
+            3. Share this complete link with students - they'll load your data with one click!
+            
+            **Quick example:**
+            If your CueStat app is at `https://cuestat.streamlit.app`:
+            ```
+            https://cuestat.streamlit.app?sheets_url={encoded_sheets_url}
+            ```
+            """)
+            st.success("✅ Copy your custom URL from above and test it!")
+        else:
+            st.info("📝 Enter a Google Sheets URL above to see the auto-loading link option.")
+        
         uploaded_file = None  # Set to None so file upload logic doesn't run
     else:  # Manual Entry
         uploaded_file = None  # Set to None so file upload logic doesn't run
