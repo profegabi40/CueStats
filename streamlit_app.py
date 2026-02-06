@@ -1194,6 +1194,10 @@ if 'global_dataframes' not in st.session_state:
 if 'manual_entry_df' not in st.session_state:
     st.session_state.manual_entry_df = pd.DataFrame({'Column A': ['']})
 
+# Instructor authentication for auto-loading feature
+if 'is_instructor' not in st.session_state:
+    st.session_state.is_instructor = False
+
 # --- Helper Functions ---
 def process_manual_entry_data(df):
     # Remove ALL auto-generated/internal columns (those with :: prefix)
@@ -2193,30 +2197,60 @@ def load_google_sheets_from_url(sheets_url):
 if selected_tab == "Data Input":
     st.header("Data Input")
 
-    # Check for auto-load Google Sheets URL in query parameters
+    # Instructor authentication for auto-loading feature
+    with st.sidebar:
+        if not st.session_state.is_instructor:
+            st.divider()
+            instructor_password = st.text_input(
+                "Instructor Options",
+                type="password",
+                placeholder="Enter password if you're an instructor",
+                help="Optional: Instructors can authenticate to use the auto-loading link feature"
+            )
+            if instructor_password:
+                # Simple password check - using CUESTAT_INSTRUCTOR_PASSWORD environment variable
+                import os
+                correct_password = os.getenv('CUESTAT_INSTRUCTOR_PASSWORD', 'instructor')
+                if instructor_password == correct_password:
+                    st.session_state.is_instructor = True
+                    st.success("✅ Authenticated as instructor")
+                    st.rerun()
+                else:
+                    st.error("❌ Incorrect password")
+        else:
+            st.divider()
+            st.success("✅ Instructor mode enabled")
+            if st.button("Logout", key="instructor_logout"):
+                st.session_state.is_instructor = False
+                st.rerun()
+
+    # Check for auto-load Google Sheets URL in query parameters (instructor only)
     query_params = st.query_params
     auto_load_url = query_params.get('sheets_url', None)
     
     if auto_load_url:
-        st.info("📋 **Auto-loading data from Google Sheets link...**", icon="ℹ️")
-        df, error = load_google_sheets_from_url(auto_load_url)
-        
-        if df is not None and not df.empty:
-            st.success(f"✅ Successfully loaded data from Google Sheets! Loaded {len(df)} rows and {len(df.columns)} columns.")
-            st.write("**Preview of Loaded Data:**")
-            show_table(df)
-            st.markdown("---")
-            st.write("You can now proceed to analyze this data using the tabs above, or load different data below.")
+        if not st.session_state.is_instructor:
+            st.warning("⚠️ Auto-loading links are available to instructors only. Please authenticate in the sidebar to use this feature.")
         else:
-            st.error(f"❌ {error}")
-            st.info("""
-            💡 **Troubleshooting steps:**
-            - Verify the sheet is published to the web (File → Share → Publish to web)
-            - Ensure you selected 'Comma-separated values (.csv)' as the format
-            - Check that the URL starts with https://docs.google.com/spreadsheets/
-            - Make sure the sheet is not restricted or private
-            - Try copying the publish link again
-            """)
+            st.info("📋 **Auto-loading data from Google Sheets link...**", icon="ℹ️")
+            df, error = load_google_sheets_from_url(auto_load_url)
+            
+            if df is not None and not df.empty:
+                st.success(f"✅ Successfully loaded data from Google Sheets! Loaded {len(df)} rows and {len(df.columns)} columns.")
+                st.write("**Preview of Loaded Data:**")
+                show_table(df)
+                st.markdown("---")
+                st.write("You can now proceed to analyze this data using the tabs above, or load different data below.")
+            else:
+                st.error(f"❌ {error}")
+                st.info("""
+                💡 **Troubleshooting steps:**
+                - Verify the sheet is published to the web (File → Share → Publish to web)
+                - Ensure you selected 'Comma-separated values (.csv)' as the format
+                - Check that the URL starts with https://docs.google.com/spreadsheets/
+                - Make sure the sheet is not restricted or private
+                - Try copying the publish link again
+                """)
 
     # Create tabs for different input methods
     input_method = st.radio(
@@ -2291,40 +2325,41 @@ if selected_tab == "Data Input":
             else:
                 st.warning("⚠️ Required field: Please enter a Google Sheets URL in the field above before clicking Load.")
         
-        # Auto-loading link section
-        st.divider()
-        st.subheader("📤 Create an Auto-Loading Link (Optional)")
-        st.markdown("""
-        Want to share your Google Sheet so others can load it with one click? Create an auto-loading link:
-        
-        1. First, get your Google Sheet publish URL from above
-        2. Then, create a link in this format and share it with others:
-        """)
-        
-        if sheets_url:
-            # Generate the auto-loading URL
-            encoded_sheets_url = urllib.parse.quote(sheets_url, safe='')
+        # Auto-loading link section (Instructor only)
+        if st.session_state.is_instructor:
+            st.divider()
+            st.subheader("📤 Create an Auto-Loading Link (Instructor Feature)")
+            st.markdown("""
+            Want to share your Google Sheet so students can load it with one click? Create an auto-loading link:
             
-            st.markdown(f"""
-            **Example auto-loading link format:**
-            ```
-            https://your-cuestat-url.com?sheets_url={encoded_sheets_url}
-            ```
-            
-            To create your auto-loading link:
-            1. Replace `https://your-cuestat-url.com` with your actual CueStat app URL
-            2. The URL above includes your Google Sheets link
-            3. Share this complete link with students - they'll load your data with one click!
-            
-            **Quick example:**
-            If your CueStat app is at `https://cuestat.streamlit.app`:
-            ```
-            https://cuestat.streamlit.app?sheets_url={encoded_sheets_url}
-            ```
+            1. First, get your Google Sheet publish URL from above
+            2. Then, create a link in this format and share it with your students:
             """)
-            st.success("✅ Copy your custom URL from above and test it!")
-        else:
-            st.info("📝 Enter a Google Sheets URL above to see the auto-loading link option.")
+            
+            if sheets_url:
+                # Generate the auto-loading URL
+                encoded_sheets_url = urllib.parse.quote(sheets_url, safe='')
+                
+                st.markdown(f"""
+                **Example auto-loading link format:**
+                ```
+                https://your-cuestat-url.com?sheets_url={encoded_sheets_url}
+                ```
+                
+                To create your auto-loading link:
+                1. Replace `https://your-cuestat-url.com` with your actual CueStat app URL
+                2. The URL above includes your Google Sheets link
+                3. Share this complete link with students - they'll load your data with one click!
+                
+                **Quick example:**
+                If your CueStat app is at `https://cuestat.streamlit.app`:
+                ```
+                https://cuestat.streamlit.app?sheets_url={encoded_sheets_url}
+                ```
+                """)
+                st.success("✅ Copy your custom URL from above and test it!")
+            else:
+                st.info("📝 Enter a Google Sheets URL above to see the auto-loading link option.")
         
         uploaded_file = None  # Set to None so file upload logic doesn't run
     else:  # Manual Entry
