@@ -2224,23 +2224,27 @@ if selected_tab == "Data Input":
                 st.session_state.is_instructor = False
                 st.rerun()
 
-    # Check for auto-load Google Sheets URL in query parameters (instructor only)
+    # Check for auto-load Google Sheets URL in query parameters.
+    # Note: creating auto-load links remains an instructor-only action,
+    # but students should be able to *use* a link posted by an instructor.
     query_params = st.query_params
     auto_load_url = query_params.get('sheets_url', None)
-    
+
     if auto_load_url:
-        if not st.session_state.is_instructor:
-            st.warning("⚠️ Auto-loading links are available to instructors only. Please authenticate in the sidebar to use this feature.")
-        else:
-            st.info("📋 **Auto-loading data from Google Sheets link...**", icon="ℹ️")
-            df, error = load_google_sheets_from_url(auto_load_url)
-            
+        # st.query_params values are lists when present in URL; handle both cases
+        sheets_param = auto_load_url[0] if isinstance(auto_load_url, (list, tuple)) and len(auto_load_url) > 0 else auto_load_url
+        if sheets_param:
+            st.info("📋 Auto-loading data from provided Google Sheets link...", icon="ℹ️")
+            df, error = load_google_sheets_from_url(sheets_param)
+
             if df is not None and not df.empty:
                 st.success(f"✅ Successfully loaded data from Google Sheets! Loaded {len(df)} rows and {len(df.columns)} columns.")
                 st.write("**Preview of Loaded Data:**")
                 show_table(df)
                 st.markdown("---")
                 st.write("You can now proceed to analyze this data using the tabs above, or load different data below.")
+                if not st.session_state.is_instructor:
+                    st.info("ℹ️ This dataset was loaded from a link provided by your instructor. If you have concerns about the data source, please contact them.")
             else:
                 st.error(f"❌ {error}")
                 st.info("""
