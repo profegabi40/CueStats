@@ -2231,13 +2231,16 @@ if selected_tab == "Data Input":
     auto_load_url = query_params.get('sheets_url', None)
 
     # FIRST: If a dataset was previously auto-loaded but sheets_url param is now missing,
-    # immediately clear the auto-loaded data to ensure proper session reset.
+    # immediately clear the auto-loaded data and remove the query param from the URL.
     if st.session_state.get('auto_loaded_sheets') and (not auto_load_url or (isinstance(auto_load_url, (list, tuple)) and len(auto_load_url) == 0)):
         try:
             # Clear auto-loaded dataset
             st.session_state.global_dataframes = {}
             st.session_state.manual_entry_df = pd.DataFrame({'Column A': ['']})
             st.session_state['auto_loaded_sheets'] = False
+            # Remove the sheets_url param from the URL to show clean state
+            if 'sheets_url' in st.query_params:
+                del st.query_params['sheets_url']
         except Exception:
             pass
 
@@ -2259,6 +2262,9 @@ if selected_tab == "Data Input":
                 # it can be cleared automatically on subsequent refreshes/new sessions
                 try:
                     st.session_state['auto_loaded_sheets'] = True
+                    # Clear the sheets_url from the URL so "Start New Session" starts with a clean URL
+                    if 'sheets_url' in st.query_params:
+                        del st.query_params['sheets_url']
                 except Exception:
                     pass
                 if not st.session_state.is_instructor:
