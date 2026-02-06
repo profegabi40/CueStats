@@ -2243,6 +2243,12 @@ if selected_tab == "Data Input":
                 show_table(df)
                 st.markdown("---")
                 st.write("You can now proceed to analyze this data using the tabs above, or load different data below.")
+                # Mark that this dataset was auto-loaded from a query parameter so
+                # it can be cleared automatically on subsequent refreshes/new sessions
+                try:
+                    st.session_state['auto_loaded_sheets'] = True
+                except Exception:
+                    pass
                 if not st.session_state.is_instructor:
                     st.info("ℹ️ This dataset was loaded from a link provided by your instructor. If you have concerns about the data source, please contact them.")
             else:
@@ -2255,6 +2261,28 @@ if selected_tab == "Data Input":
                 - Make sure the sheet is not restricted or private
                 - Try copying the publish link again
                 """)
+
+    # If a dataset was previously auto-loaded via query param but the current
+    # URL does not include `sheets_url`, clear that auto-loaded data so a page
+    # refresh or new session does not retain instructor-provided datasets.
+    if st.session_state.get('auto_loaded_sheets'):
+        # If query param is missing now, reset the auto-loaded data
+        if 'sheets_url' not in query_params or not query_params.get('sheets_url'):
+            try:
+                # Only clear the auto-loaded active dataset, keep other user-loaded data
+                if 'global_dataframes' in st.session_state:
+                    # Remove active_data only if it was auto-loaded
+                    st.session_state.global_dataframes = {}
+                # Reset manual entry state
+                st.session_state.manual_entry_df = pd.DataFrame({'Column A': ['']})
+                st.session_state['auto_loaded_sheets'] = False
+                # Optionally trigger a rerun so UI reflects cleared state
+                try:
+                    safe_rerun()
+                except Exception:
+                    pass
+            except Exception:
+                pass
 
     # Create tabs for different input methods
     input_method = st.radio(
