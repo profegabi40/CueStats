@@ -2230,6 +2230,18 @@ if selected_tab == "Data Input":
     query_params = st.query_params
     auto_load_url = query_params.get('sheets_url', None)
 
+    # FIRST: If a dataset was previously auto-loaded but sheets_url param is now missing,
+    # immediately clear the auto-loaded data to ensure proper session reset.
+    if st.session_state.get('auto_loaded_sheets') and (not auto_load_url or (isinstance(auto_load_url, (list, tuple)) and len(auto_load_url) == 0)):
+        try:
+            # Clear auto-loaded dataset
+            st.session_state.global_dataframes = {}
+            st.session_state.manual_entry_df = pd.DataFrame({'Column A': ['']})
+            st.session_state['auto_loaded_sheets'] = False
+        except Exception:
+            pass
+
+    # SECOND: Check if sheets_url param exists and try to auto-load
     if auto_load_url:
         # st.query_params values are lists when present in URL; handle both cases
         sheets_param = auto_load_url[0] if isinstance(auto_load_url, (list, tuple)) and len(auto_load_url) > 0 else auto_load_url
@@ -2261,28 +2273,6 @@ if selected_tab == "Data Input":
                 - Make sure the sheet is not restricted or private
                 - Try copying the publish link again
                 """)
-
-    # If a dataset was previously auto-loaded via query param but the current
-    # URL does not include `sheets_url`, clear that auto-loaded data so a page
-    # refresh or new session does not retain instructor-provided datasets.
-    if st.session_state.get('auto_loaded_sheets'):
-        # If query param is missing now, reset the auto-loaded data
-        if 'sheets_url' not in query_params or not query_params.get('sheets_url'):
-            try:
-                # Only clear the auto-loaded active dataset, keep other user-loaded data
-                if 'global_dataframes' in st.session_state:
-                    # Remove active_data only if it was auto-loaded
-                    st.session_state.global_dataframes = {}
-                # Reset manual entry state
-                st.session_state.manual_entry_df = pd.DataFrame({'Column A': ['']})
-                st.session_state['auto_loaded_sheets'] = False
-                # Optionally trigger a rerun so UI reflects cleared state
-                try:
-                    safe_rerun()
-                except Exception:
-                    pass
-            except Exception:
-                pass
 
     # Create tabs for different input methods
     input_method = st.radio(
