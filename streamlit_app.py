@@ -2562,38 +2562,6 @@ if selected_tab == "Data Input":
         if edited_df is not None and len(edited_df) > 0:
             edited_df.index = range(1, len(edited_df) + 1)
             edited_df.index.name = None  # Set to None to avoid showing "None" header
-            
-            # Auto-add blank row when user types in the last row
-            # Check if the last row has any non-null values
-            last_row = edited_df.iloc[-1]
-            has_data_in_last_row = last_row.notna().any()
-            blank_row_added = False
-            
-            if has_data_in_last_row:
-                # Check if there's already an empty row after the last row with data
-                if len(edited_df) > 1:
-                    second_to_last_row = edited_df.iloc[-2]
-                    # If both last and second-to-last have data, add a blank row
-                    if second_to_last_row.notna().any():
-                        # Add a blank row
-                        blank_row = pd.Series([None] * len(edited_df.columns), index=edited_df.columns)
-                        edited_df = pd.concat([edited_df, blank_row.to_frame().T], ignore_index=True)
-                        # Reindex
-                        edited_df.index = range(1, len(edited_df) + 1)
-                        edited_df.index.name = None
-                        blank_row_added = True
-                else:
-                    # Only one row with data, add a blank row
-                    blank_row = pd.Series([None] * len(edited_df.columns), index=edited_df.columns)
-                    edited_df = pd.concat([edited_df, blank_row.to_frame().T], ignore_index=True)
-                    # Reindex
-                    edited_df.index = range(1, len(edited_df) + 1)
-                    edited_df.index.name = None
-                    blank_row_added = True
-            
-            # Update session state with the modified dataframe to persist the blank row
-            if blank_row_added:
-                st.session_state.table_data = edited_df.copy()
 
         # DO NOT update session state here - it causes reruns that erase data
         # The data_editor widget manages its own state via the key
