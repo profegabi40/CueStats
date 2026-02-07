@@ -2567,6 +2567,31 @@ if selected_tab == "Data Input":
         # The data_editor widget manages its own state via the key
         # We'll only sync to session state when needed (buttons) or when processing
     
+        # Auto-process toggle
+        st.markdown("---")
+        auto_process_enabled = st.checkbox(
+            "⚡ Auto-process data as you type",
+            value=False,
+            key="manual_auto_process_toggle",
+            help="When enabled, data will be automatically processed and stored in real-time as you type."
+        )
+        
+        # Auto-process logic: if enabled, process data on every change
+        if auto_process_enabled and edited_df is not None and not edited_df.empty:
+            try:
+                # Remove completely empty rows
+                cleaned_data = edited_df.dropna(how='all')
+                if not cleaned_data.empty:
+                    processed_manual_df = process_manual_entry_data(cleaned_data)
+                    # Keep 1-based index for consistency with uploaded data
+                    processed_manual_df.index = range(1, len(processed_manual_df) + 1)
+                    processed_manual_df.index.name = None
+                    # Update session state automatically
+                    st.session_state.global_dataframes = {'active_data': processed_manual_df}
+                    st.info(f"✨ Auto-processed: {len(processed_manual_df)} rows, {len(processed_manual_df.columns)} columns")
+            except Exception as e:
+                st.warning(f"Auto-process preview (won't affect manual processing): {e}")
+    
         # Action buttons
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
@@ -2588,8 +2613,8 @@ if selected_tab == "Data Input":
                 st.rerun()
 
     
-        # Process button
-        if st.button("Process Manual Entry Data"):
+        # Process button (for manual explicit processing if auto-process is disabled)
+        if st.button("Process Manual Entry Data", help="Manually process the data. Also works with auto-process disabled."):
             # Get the current data from the editor (stored by its key in session state)
             # The data_editor stores its state under the key we provided
             table_data = edited_df if edited_df is not None else pd.DataFrame()
