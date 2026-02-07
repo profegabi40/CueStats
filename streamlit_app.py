@@ -2257,7 +2257,7 @@ if selected_tab == "Data Input":
                 st.write("**Preview of Loaded Data:**")
                 show_table(df)
                 st.markdown("---")
-                st.write("You can now proceed to analyze this data using the tabs above, or load different data below.")
+                st.write("You can now proceed to analyze this data using the CueStat tools, or load different data below.")
                 # Mark that this dataset was auto-loaded from a query parameter so
                 # it can be cleared automatically on subsequent refreshes/new sessions
                 try:
@@ -2620,7 +2620,62 @@ if selected_tab == "Data Input":
     if st.session_state.global_dataframes and 'active_data' in st.session_state.global_dataframes:
         df = st.session_state.global_dataframes['active_data']
         st.write(f"**Active Dataset** ({df.shape[0]} rows, {df.shape[1]} columns)")
-        show_table(df)
+        
+        # Create tabs for view and edit modes
+        view_tab, edit_tab = st.tabs(["View Data", "Edit Data"])
+        
+        with view_tab:
+            show_table(df)
+        
+        with edit_tab:
+            st.markdown("""
+            <div role="region" aria-label="Data Editor">
+            <p id="data-editor-help">💡 Edit the table below to modify your data. Use Tab to navigate between cells. 
+            Click the '+' icon to add rows, or use the trash icon to delete rows.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Initialize session state for editing if not already done
+            if 'edited_data' not in st.session_state:
+                st.session_state.edited_data = df.copy()
+            
+            # Display editable dataframe
+            edited_df = st.data_editor(
+                st.session_state.edited_data,
+                num_rows="dynamic",
+                use_container_width=True,
+                key="current_data_editor",
+                hide_index=True
+            )
+            
+            # Action buttons
+            col1, col2, col3 = st.columns([1, 1, 1])
+            
+            with col1:
+                if st.button("💾 Save Changes", key="save_edits_btn"):
+                    if edited_df is not None and len(edited_df) > 0:
+                        # Update the active data in session state
+                        st.session_state.global_dataframes['active_data'] = edited_df.copy()
+                        st.session_state.edited_data = edited_df.copy()
+                        st.success(f"✓ Data saved! Dataset now has {len(edited_df)} rows and {len(edited_df.columns)} columns.")
+                    else:
+                        st.error("Cannot save empty dataset.")
+            
+            with col2:
+                if st.button("🔄 Reset Changes", key="reset_edits_btn"):
+                    st.session_state.edited_data = df.copy()
+                    st.rerun()
+            
+            with col3:
+                if st.button("➕ Add Column", key="add_column_edit_btn"):
+                    col_num = len(edited_df.columns) + 1
+                    new_col_name = f"Column {col_num}"
+                    while new_col_name in edited_df.columns:
+                        col_num += 1
+                        new_col_name = f"Column {col_num}"
+                    edited_df[new_col_name] = ""
+                    st.session_state.edited_data = edited_df.copy()
+                    st.rerun()
     else:
         st.info("No dataframes loaded yet.")
 
