@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import io
 import re
+import time
 import urllib.parse
 from scipy import stats
 import matplotlib.pyplot as plt # Added for plotting
@@ -1193,6 +1194,9 @@ if 'global_dataframes' not in st.session_state:
 
 if 'manual_entry_df' not in st.session_state:
     st.session_state.manual_entry_df = pd.DataFrame({'Column A': ['']})
+
+if 'last_manual_process_time' not in st.session_state:
+    st.session_state.last_manual_process_time = 0
 
 # Instructor authentication for auto-loading feature
 if 'is_instructor' not in st.session_state:
@@ -2569,33 +2573,43 @@ if selected_tab == "Data Input":
     
         # Auto-process toggle
         st.markdown("---")
-        auto_process_enabled = st.checkbox(
-            "⚡ Auto-process data as you type",
-            value=False,
-            key="manual_auto_process_toggle",
-            help="When enabled, data will be automatically processed and stored in real-time as you type."
-        )
+        col_toggle1, col_toggle2 = st.columns([3, 1])
+        with col_toggle1:
+            auto_process_enabled = st.checkbox(
+                "⚡ Auto-process data as you type",
+                value=True,
+                key="manual_auto_process_toggle",
+                help="Data will be automatically processed and stored in real-time as you type. Disable this if you want to enter all data first before processing."
+            )
+        with col_toggle2:
+            st.markdown("**ON by default**")
         
-        # Auto-process logic: if enabled, process data on every change
+        # Auto-process logic: if enabled, process data with debouncing (500ms)
+        current_time = time.time()
+        # Debounce: only process if 0.5+ seconds have passed since last processing
         if auto_process_enabled and edited_df is not None and not edited_df.empty:
-            try:
-                # Remove completely empty rows
-                cleaned_data = edited_df.dropna(how='all')
-                if not cleaned_data.empty:
-                    processed_manual_df = process_manual_entry_data(cleaned_data)
-                    # Keep 1-based index for consistency with uploaded data
-                    processed_manual_df.index = range(1, len(processed_manual_df) + 1)
-                    processed_manual_df.index.name = None
-                    # Update session state automatically
-                    st.session_state.global_dataframes = {'active_data': processed_manual_df}
-                    st.info(f"✨ Auto-processed: {len(processed_manual_df)} rows, {len(processed_manual_df.columns)} columns")
-            except Exception as e:
-                st.warning(f"Auto-process preview (won't affect manual processing): {e}")
+            if current_time - st.session_state.last_manual_process_time >= 0.5:
+                try:
+                    # Remove completely empty rows
+                    cleaned_data = edited_df.dropna(how='all')
+                    if not cleaned_data.empty:
+                        processed_manual_df = process_manual_entry_data(cleaned_data)
+                        # Keep 1-based index for consistency with uploaded data
+                        processed_manual_df.index = range(1, len(processed_manual_df) + 1)
+                        processed_manual_df.index.name = None
+                        # Update session state automatically
+                        st.session_state.global_dataframes = {'active_data': processed_manual_df}
+                        st.session_state.last_manual_process_time = current_time
+                        st.success(f"✨ Data auto-processed! {len(processed_manual_df)} rows, {len(processed_manual_df.columns)} columns")
+                except Exception as e:
+                    st.warning(f"Auto-processing error: {e}")
+            elif current_time - st.session_state.last_manual_process_time < 0.5:
+                st.info("⏳ Processing your changes...")
     
         # Action buttons
-        col1, col2, col3 = st.columns([1, 1, 1])
+        col1, col2 = st.columns([1, 1])
         with col1:
-            if st.button("Add Column", key="add_col_btn"):
+            if st.button("➕ Add Column", key="add_col_btn"):
                 new_col_num = len(edited_df.columns) + 1
                 new_col_name = f"Column {new_col_num}"
                 while new_col_name in edited_df.columns:
@@ -2607,38 +2621,10 @@ if selected_tab == "Data Input":
                 st.rerun()
     
         with col2:
-            if st.button("Clear All", key="clear_all_btn_unique"):
+            if st.button("🗑️ Clear All", key="clear_all_btn_unique"):
                 # Set flag to clear on next render
                 st.session_state.clear_all_triggered = True
                 st.rerun()
-
-    
-        # Process button (for manual explicit processing if auto-process is disabled)
-        if st.button("Process Manual Entry Data", help="Manually process the data. Also works with auto-process disabled."):
-            # Get the current data from the editor (stored by its key in session state)
-            # The data_editor stores its state under the key we provided
-            table_data = edited_df if edited_df is not None else pd.DataFrame()
-        
-            if not table_data.empty:
-                # Remove completely empty rows
-                cleaned_data = table_data.dropna(how='all')
-                if not cleaned_data.empty:
-                    try:
-                        processed_manual_df = process_manual_entry_data(cleaned_data)
-                        # Keep 1-based index for consistency with uploaded data
-                        processed_manual_df.index = range(1, len(processed_manual_df) + 1)
-                        processed_manual_df.index.name = None  # Set to None to avoid showing "None" header
-                        # Replace any existing dataframe with the manual entry data
-                        st.session_state.global_dataframes = {'active_data': processed_manual_df}
-                        st.success("Manual entry data processed and stored. This replaces any previously loaded data.")
-                        st.write("Processed Manual Entry Data:")
-                        show_table(processed_manual_df)
-                    except Exception as e:
-                        st.error(f"Error processing manual entry data: {e}")
-                else:
-                    st.warning("Manual entry table is empty. Please add some data.")
-            else:
-                st.warning("Manual entry table is empty. Please add some data.")
 
     # Display currently loaded dataframe
     st.subheader("Current Data:")
@@ -2660,9 +2646,8 @@ if selected_tab == "Data Input":
             </div>
             """, unsafe_allow_html=True)
             
-            # Initialize session state for editing if not already done
-            if 'edited_data' not in st.session_state:
-                st.session_state.edited_data = df.copy()
+            # Always sync edited_data with current data to ensure consistency across input methods
+            st.session_state.edited_data = df.copy()
             
             # Display editable dataframe
             edited_df = st.data_editor(
