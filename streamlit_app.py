@@ -141,6 +141,16 @@ div[data-testid="stDataFrame"] th, div[data-testid="stTable"] th {
 [data-testid="stTable"] thead tr th {
   font-weight: 700 !important;
 }
+
+/* Tighten metric typography while keeping readable sizes */
+[data-testid="stMetricValue"] {
+    font-size: 0.95rem !important;
+    line-height: 1.1 !important;
+}
+[data-testid="stMetricLabel"] {
+    font-size: 0.8rem !important;
+    line-height: 1.1 !important;
+}
 /* Style st.data_editor and st.dataframe cells with solid black borders */
 [data-testid="stDataFrame"] td, [data-testid="stDataFrame"] th,
 [data-testid="stTable"] td, [data-testid="stTable"] th {
@@ -1807,7 +1817,10 @@ def get_boxplot_statistics(data):
         else:
             whisker_low = inliers.min()
             whisker_high = inliers.max()
-        outliers = numeric_data[(numeric_data < lower_bound) | (numeric_data > upper_bound)]
+        outliers_low = numeric_data[numeric_data < lower_bound]
+        outliers_high = numeric_data[numeric_data > upper_bound]
+        outlier_min = outliers_low.min() if not outliers_low.empty else None
+        outlier_max = outliers_high.max() if not outliers_high.empty else None
         return {
             'min': numeric_data.min(),
             'q1': q1,
@@ -1816,7 +1829,9 @@ def get_boxplot_statistics(data):
             'max': numeric_data.max(),
             'whisker_low': whisker_low,
             'whisker_high': whisker_high,
-            'outlier_count': int(outliers.shape[0])
+            'outlier_min': outlier_min,
+            'outlier_max': outlier_max,
+            'outlier_count': int(outliers_low.shape[0] + outliers_high.shape[0])
         }
 
     if isinstance(data, list):
@@ -1925,9 +1940,25 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
                 upperfence=[stats['whisker_high']],
                 boxpoints=False,
                 hoveron='boxes',
-                hovertemplate=hovertext + "<extra></extra>"
+                hoverinfo='skip'
             )
             fig.add_trace(trace)
+            if horizontal:
+                hover_x = [stats['median']]
+                hover_y = [series_label]
+            else:
+                hover_x = [series_label]
+                hover_y = [stats['median']]
+            fig.add_trace(
+                go.Scatter(
+                    x=hover_x,
+                    y=hover_y,
+                    mode='markers',
+                    marker=dict(size=10, opacity=0),
+                    showlegend=False,
+                    hovertemplate=hovertext + "<extra></extra>"
+                )
+            )
             if stats['outliers'] is not None and not stats['outliers'].empty:
                 if horizontal:
                     fig.add_trace(
@@ -1985,9 +2016,25 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
             upperfence=[stats['whisker_high']],
             boxpoints=False,
             hoveron='boxes',
-            hovertemplate=hovertext + "<extra></extra>"
+            hoverinfo='skip'
         )
         fig = go.Figure(data=[trace])
+        if horizontal:
+            hover_x = [stats['median']]
+            hover_y = [label]
+        else:
+            hover_x = [label]
+            hover_y = [stats['median']]
+        fig.add_trace(
+            go.Scatter(
+                x=hover_x,
+                y=hover_y,
+                mode='markers',
+                marker=dict(size=10, opacity=0),
+                showlegend=False,
+                hovertemplate=hovertext + "<extra></extra>"
+            )
+        )
         if stats['outliers'] is not None and not stats['outliers'].empty:
             if horizontal:
                 fig.add_trace(
@@ -4611,34 +4658,42 @@ elif selected_tab == "Visualizations":
                             for i, stats in enumerate(boxplot_stats):
                                 label = labels[i] if labels and i < len(labels) else f"Dataset {i+1}"
                                 with st.expander(f"📈 {label}", expanded=(i==0)):
-                                    col1, col2, col3 = st.columns(3)
-                                    with col1:
-                                        st.metric("Minimum", format_decimal(stats['min']))
-                                        st.metric("Q1 (25th Percentile)", format_decimal(stats['q1']))
-                                        st.metric("Whisker Low", format_decimal(stats['whisker_low']))
-                                    with col2:
-                                        st.metric("Median (50th Percentile)", format_decimal(stats['median']))
-                                        st.metric("Q3 (75th Percentile)", format_decimal(stats['q3']))
-                                        st.metric("Whisker High", format_decimal(stats['whisker_high']))
-                                    with col3:
-                                        st.metric("Maximum", format_decimal(stats['max']))
-                                        st.metric("IQR", format_decimal(stats['q3'] - stats['q1']))
-                                        st.metric("Outlier Count", stats['outlier_count'])
+                                    metrics = [
+                                        (
+                                            "Outlier Min" if stats['outlier_min'] is not None else "Minimum",
+                                            stats['outlier_min'] if stats['outlier_min'] is not None else stats['min']
+                                        ),
+                                        ("Q1", stats['q1']),
+                                        ("Median", stats['median']),
+                                        ("Q3", stats['q3']),
+                                        (
+                                            "Outlier Max" if stats['outlier_max'] is not None else "Maximum",
+                                            stats['outlier_max'] if stats['outlier_max'] is not None else stats['max']
+                                        )
+                                    ]
+                                    cols = st.columns(len(metrics))
+                                    for col, (metric_label, metric_value) in zip(cols, metrics):
+                                        with col:
+                                            st.metric(metric_label, format_decimal(metric_value))
                         else:
                             # Single boxplot
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.metric("Minimum", format_decimal(boxplot_stats['min']))
-                                st.metric("Q1 (25th Percentile)", format_decimal(boxplot_stats['q1']))
-                                st.metric("Whisker Low", format_decimal(boxplot_stats['whisker_low']))
-                            with col2:
-                                st.metric("Median (50th Percentile)", format_decimal(boxplot_stats['median']))
-                                st.metric("IQR", format_decimal(boxplot_stats['q3'] - boxplot_stats['q1']))
-                                st.metric("Outlier Count", boxplot_stats['outlier_count'])
-                            with col3:
-                                st.metric("Q3 (75th Percentile)", format_decimal(boxplot_stats['q3']))
-                                st.metric("Maximum", format_decimal(boxplot_stats['max']))
-                                st.metric("Whisker High", format_decimal(boxplot_stats['whisker_high']))
+                            metrics = [
+                                (
+                                    "Outlier Min" if boxplot_stats['outlier_min'] is not None else "Minimum",
+                                    boxplot_stats['outlier_min'] if boxplot_stats['outlier_min'] is not None else boxplot_stats['min']
+                                ),
+                                ("Q1", boxplot_stats['q1']),
+                                ("Median", boxplot_stats['median']),
+                                ("Q3", boxplot_stats['q3']),
+                                (
+                                    "Outlier Max" if boxplot_stats['outlier_max'] is not None else "Maximum",
+                                    boxplot_stats['outlier_max'] if boxplot_stats['outlier_max'] is not None else boxplot_stats['max']
+                                )
+                            ]
+                            cols = st.columns(len(metrics))
+                            for col, (metric_label, metric_value) in zip(cols, metrics):
+                                with col:
+                                    st.metric(metric_label, format_decimal(metric_value))
 
             except ValueError as ve:
                 st.error(f"Plotting Error: {ve}")
