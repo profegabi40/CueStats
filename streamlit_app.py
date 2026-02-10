@@ -1528,25 +1528,24 @@ def plot_normal_distribution(mean, std_dev, x_min_factor=-4, x_max_factor=4, num
     x_values = np.linspace(mean + x_min_factor * std_dev, mean + x_max_factor * std_dev, num_points)
     pdf_values = stats.norm.pdf(x_values, loc=mean, scale=std_dev)
     fig, ax = plt.subplots(1, 1, figsize=(7.5, 4.5))
-    # WCAG-compliant color: accessible blue
-    ax.plot(x_values, pdf_values, color='#0173B2', linewidth=2, label='PDF')
+    ax.plot(x_values, pdf_values, color='b', linewidth=2, label='PDF')
     
     # Add shading based on calculation type
-    if calc_type in ['cdf', 'cdf_strict'] and shade_x is not None:
+    if calc_type in [None, 'pdf']:
+        ax.fill_between(x_values, pdf_values, alpha=0.2, color='skyblue')
+    elif calc_type in ['cdf', 'cdf_strict'] and shade_x is not None:
         shade_mask = x_values <= shade_x if calc_type == 'cdf' else x_values < shade_x
-        # Accessible blue with hatching pattern for non-color indicators
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P(X < {shade_x})')
-        # Accessible orange for contrast
-        ax.axvline(shade_x, color='#DE8F05', linestyle='--', linewidth=2, label=f'x = {shade_x}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P(X < {shade_x})')
+        ax.axvline(shade_x, color='r', linestyle='--', linewidth=2, label=f'x = {shade_x}')
     elif calc_type in ['survival', 'survival_strict'] and shade_x is not None:
         shade_mask = x_values >= shade_x if calc_type == 'survival' else x_values > shade_x
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P(X > {shade_x})')
-        ax.axvline(shade_x, color='#DE8F05', linestyle='--', linewidth=2, label=f'x = {shade_x}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P(X > {shade_x})')
+        ax.axvline(shade_x, color='r', linestyle='--', linewidth=2, label=f'x = {shade_x}')
     elif calc_type == 'interval' and shade_a is not None and shade_b is not None:
         shade_mask = (x_values >= shade_a) & (x_values <= shade_b)
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P({shade_a} < X < {shade_b})')
-        ax.axvline(shade_a, color='#DE8F05', linestyle='--', linewidth=2, label=f'a = {shade_a}')
-        ax.axvline(shade_b, color='#DE8F05', linestyle='--', linewidth=2, label=f'b = {shade_b}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P({shade_a} < X < {shade_b})')
+        ax.axvline(shade_a, color='r', linestyle='--', linewidth=2, label=f'a = {shade_a}')
+        ax.axvline(shade_b, color='r', linestyle='--', linewidth=2, label=f'b = {shade_b}')
     
     ax.set_title(f'Normal Distribution (μ={mean}, σ={std_dev})', fontsize=14)
     ax.set_xlabel('X', fontsize=12)
@@ -1566,7 +1565,7 @@ def plot_binomial_distribution(n, p, shade_k=None, shade_a=None, shade_b=None, c
     # Plot vertical lines (stems) from 0 to pmf value
     # Use both color AND line width for accessibility (not color alone)
     for k, pmf in zip(k_values, pmf_values):
-        color = '#CCCCCC'  # Accessible gray (3:1 contrast)
+        color = 'b'
         linewidth = 2
         markersize = 6
         # Determine if this point should be highlighted
@@ -1587,9 +1586,9 @@ def plot_binomial_distribution(n, p, shade_k=None, shade_a=None, shade_b=None, c
             is_highlighted = True
         
         if is_highlighted:
-            color = '#0173B2'  # Accessible blue
-            linewidth = 4  # Thicker line for highlighted values
-            markersize = 10  # Larger marker
+            color = 'r'
+            linewidth = 3
+            markersize = 8
         
         ax.plot([k, k], [0, pmf], color=color, linewidth=linewidth, alpha=0.9)
         ax.plot(k, pmf, 'o', color=color, markersize=markersize, alpha=0.9)
@@ -1609,22 +1608,24 @@ def plot_chi_square_distribution(df, x_max_factor=5, num_points=500, shade_x=Non
     x_values = np.linspace(0, max_x, num_points)
     pdf_values = stats.chi2.pdf(x_values, df=df)
     fig, ax = plt.subplots(1, 1, figsize=(7.5, 4.5))
-    ax.plot(x_values, pdf_values, color='#0173B2', linewidth=2, label='PDF')
+    ax.plot(x_values, pdf_values, color='b', linewidth=2, label='PDF')
     
     # Add shading based on calculation type
-    if calc_type in ['cdf', 'cdf_strict'] and shade_x is not None:
+    if calc_type in [None, 'pdf']:
+        ax.fill_between(x_values, pdf_values, alpha=0.2, color='skyblue')
+    elif calc_type in ['cdf', 'cdf_strict'] and shade_x is not None:
         shade_mask = x_values <= shade_x
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P(X < {shade_x})')
-        ax.axvline(shade_x, color='#DE8F05', linestyle='--', linewidth=2, label=f'x = {shade_x}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P(X < {shade_x})')
+        ax.axvline(shade_x, color='r', linestyle='--', linewidth=2, label=f'x = {shade_x}')
     elif calc_type in ['survival', 'survival_strict'] and shade_x is not None:
         shade_mask = x_values >= shade_x
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P(X > {shade_x})')
-        ax.axvline(shade_x, color='#DE8F05', linestyle='--', linewidth=2, label=f'x = {shade_x}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P(X > {shade_x})')
+        ax.axvline(shade_x, color='r', linestyle='--', linewidth=2, label=f'x = {shade_x}')
     elif calc_type == 'interval' and shade_a is not None and shade_b is not None:
         shade_mask = (x_values >= shade_a) & (x_values <= shade_b)
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P({shade_a} < X < {shade_b})')
-        ax.axvline(shade_a, color='#DE8F05', linestyle='--', linewidth=2, label=f'a = {shade_a}')
-        ax.axvline(shade_b, color='#DE8F05', linestyle='--', linewidth=2, label=f'b = {shade_b}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P({shade_a} < X < {shade_b})')
+        ax.axvline(shade_a, color='r', linestyle='--', linewidth=2, label=f'a = {shade_a}')
+        ax.axvline(shade_b, color='r', linestyle='--', linewidth=2, label=f'b = {shade_b}')
     
     ax.set_title(f'Chi-square Distribution (df={df})', fontsize=14)
     ax.set_xlabel('X', fontsize=12)
@@ -1640,22 +1641,24 @@ def plot_student_t_distribution(df, x_min_factor=-5, x_max_factor=5, num_points=
     else: x_values = np.linspace(x_min_factor * 2, x_max_factor * 2, num_points)
     pdf_values = stats.t.pdf(x_values, df=df)
     fig, ax = plt.subplots(1, 1, figsize=(7.5, 4.5))
-    ax.plot(x_values, pdf_values, color='#0173B2', linewidth=2, label='PDF')
+    ax.plot(x_values, pdf_values, color='b', linewidth=2, label='PDF')
     
     # Add shading based on calculation type
-    if calc_type in ['cdf', 'cdf_strict'] and shade_x is not None:
+    if calc_type in [None, 'pdf']:
+        ax.fill_between(x_values, pdf_values, alpha=0.2, color='skyblue')
+    elif calc_type in ['cdf', 'cdf_strict'] and shade_x is not None:
         shade_mask = x_values <= shade_x
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P(X < {shade_x})')
-        ax.axvline(shade_x, color='#DE8F05', linestyle='--', linewidth=2, label=f'x = {shade_x}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P(X < {shade_x})')
+        ax.axvline(shade_x, color='r', linestyle='--', linewidth=2, label=f'x = {shade_x}')
     elif calc_type in ['survival', 'survival_strict'] and shade_x is not None:
         shade_mask = x_values >= shade_x
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P(X > {shade_x})')
-        ax.axvline(shade_x, color='#DE8F05', linestyle='--', linewidth=2, label=f'x = {shade_x}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P(X > {shade_x})')
+        ax.axvline(shade_x, color='r', linestyle='--', linewidth=2, label=f'x = {shade_x}')
     elif calc_type == 'interval' and shade_a is not None and shade_b is not None:
         shade_mask = (x_values >= shade_a) & (x_values <= shade_b)
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P({shade_a} < X < {shade_b})')
-        ax.axvline(shade_a, color='#DE8F05', linestyle='--', linewidth=2, label=f'a = {shade_a}')
-        ax.axvline(shade_b, color='#DE8F05', linestyle='--', linewidth=2, label=f'b = {shade_b}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P({shade_a} < X < {shade_b})')
+        ax.axvline(shade_a, color='r', linestyle='--', linewidth=2, label=f'a = {shade_a}')
+        ax.axvline(shade_b, color='r', linestyle='--', linewidth=2, label=f'b = {shade_b}')
     
     ax.set_title(f"Student's t-Distribution (df={df})", fontsize=14)
     ax.set_xlabel('X', fontsize=12)
@@ -1675,22 +1678,24 @@ def plot_f_distribution(dfn, dfd, x_max_factor=5, num_points=500, shade_x=None, 
     x_values = x_values[x_values >= 0]
     pdf_values = stats.f.pdf(x_values, dfn=dfn, dfd=dfd)
     fig, ax = plt.subplots(1, 1, figsize=(7.5, 4.5))
-    ax.plot(x_values, pdf_values, color='#0173B2', linewidth=2, label='PDF')
+    ax.plot(x_values, pdf_values, color='b', linewidth=2, label='PDF')
     
     # Add shading based on calculation type
-    if calc_type in ['cdf', 'cdf_strict'] and shade_x is not None:
+    if calc_type in [None, 'pdf']:
+        ax.fill_between(x_values, pdf_values, alpha=0.2, color='skyblue')
+    elif calc_type in ['cdf', 'cdf_strict'] and shade_x is not None:
         shade_mask = x_values <= shade_x
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P(X < {shade_x})')
-        ax.axvline(shade_x, color='#DE8F05', linestyle='--', linewidth=2, label=f'x = {shade_x}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P(X < {shade_x})')
+        ax.axvline(shade_x, color='r', linestyle='--', linewidth=2, label=f'x = {shade_x}')
     elif calc_type in ['survival', 'survival_strict'] and shade_x is not None:
         shade_mask = x_values >= shade_x
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P(X > {shade_x})')
-        ax.axvline(shade_x, color='#DE8F05', linestyle='--', linewidth=2, label=f'x = {shade_x}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P(X > {shade_x})')
+        ax.axvline(shade_x, color='r', linestyle='--', linewidth=2, label=f'x = {shade_x}')
     elif calc_type == 'interval' and shade_a is not None and shade_b is not None:
         shade_mask = (x_values >= shade_a) & (x_values <= shade_b)
-        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.5, color='#0173B2', hatch='///', edgecolor='#0173B2', label=f'P({shade_a} < X < {shade_b})')
-        ax.axvline(shade_a, color='#DE8F05', linestyle='--', linewidth=2, label=f'a = {shade_a}')
-        ax.axvline(shade_b, color='#DE8F05', linestyle='--', linewidth=2, label=f'b = {shade_b}')
+        ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P({shade_a} < X < {shade_b})')
+        ax.axvline(shade_a, color='r', linestyle='--', linewidth=2, label=f'a = {shade_a}')
+        ax.axvline(shade_b, color='r', linestyle='--', linewidth=2, label=f'b = {shade_b}')
     
     ax.set_title(f'F-Distribution (df1={dfn}, df2={dfd})', fontsize=14)
     ax.set_xlabel('X', fontsize=12)
@@ -3310,7 +3315,7 @@ elif selected_tab == "Probability Distributions":
                     st.write(f"**b** = {b_val}")
                 st.markdown(f"<p style='color: black; font-size: 18px;'><b>Calculated Probability: {result:.6f}</b></p>", unsafe_allow_html=True)
                 if fig is not None:
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.pyplot(fig)
                     # Accessibility: Add text alternative for screen readers
                     caption_text = f"{selected_dist_type} distribution plot. Parameters: {', '.join([f'{k}={v}' for k,v in params.items()])}. "
                     if calc_kwargs['calc_type'] == 'cdf':
