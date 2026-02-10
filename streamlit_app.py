@@ -7,6 +7,85 @@ import time
 import urllib.parse
 from scipy import stats
 import matplotlib.pyplot as plt # Added for plotting
+import plotly.express as px
+import plotly.graph_objects as go
+
+PLOTLY_QUARTILE_METHOD = "hazen"
+PANDAS_QUARTILE_INTERPOLATION = "linear"
+
+def compute_quartile(series, q):
+    values = pd.to_numeric(series, errors='coerce').dropna().to_numpy()
+    if values.size == 0:
+        return np.nan
+    values = np.sort(values)
+
+    def quantile_linear(vals, quantile):
+        try:
+            return float(np.quantile(vals, quantile, method="linear"))
+        except TypeError:
+            return float(np.quantile(vals, quantile, interpolation="linear"))
+
+    def quantile_exclusive(vals, quantile):
+        n = len(vals)
+        if n == 1:
+            return float(vals[0])
+        pos = quantile * (n + 1)
+        if pos <= 1:
+            return float(vals[0])
+        if pos >= n:
+            return float(vals[-1])
+        lower = int(np.floor(pos))
+        upper = int(np.ceil(pos))
+        if lower == upper:
+            return float(vals[lower - 1])
+        lower_val = vals[lower - 1]
+        upper_val = vals[upper - 1]
+        frac = pos - lower
+        return float(lower_val + frac * (upper_val - lower_val))
+
+    def quantile_inclusive(vals, quantile):
+        n = len(vals)
+        if n == 1:
+            return float(vals[0])
+        pos = quantile * (n - 1) + 1
+        if pos <= 1:
+            return float(vals[0])
+        if pos >= n:
+            return float(vals[-1])
+        lower = int(np.floor(pos))
+        upper = int(np.ceil(pos))
+        if lower == upper:
+            return float(vals[lower - 1])
+        lower_val = vals[lower - 1]
+        upper_val = vals[upper - 1]
+        frac = pos - lower
+        return float(lower_val + frac * (upper_val - lower_val))
+
+    if PLOTLY_QUARTILE_METHOD == "hazen":
+        try:
+            return float(np.quantile(values, q, method="hazen"))
+        except TypeError:
+            n = len(values)
+            if n == 1:
+                return float(values[0])
+            pos = q * (n + 0.5) + 0.5
+            if pos <= 1:
+                return float(values[0])
+            if pos >= n:
+                return float(values[-1])
+            lower = int(np.floor(pos))
+            upper = int(np.ceil(pos))
+            if lower == upper:
+                return float(values[lower - 1])
+            lower_val = values[lower - 1]
+            upper_val = values[upper - 1]
+            frac = pos - lower
+            return float(lower_val + frac * (upper_val - lower_val))
+    if PLOTLY_QUARTILE_METHOD == "exclusive":
+        return quantile_exclusive(values, q)
+    if PLOTLY_QUARTILE_METHOD == "inclusive":
+        return quantile_inclusive(values, q)
+    return quantile_linear(values, q)
 import logging
 # Toggle to enable AgGrid debug prints (set to True only when debugging)
 DEBUG_AGRID = False
@@ -1298,17 +1377,31 @@ def get_data_from_col_string(col_string):
     if data.empty: raise ValueError(f"Selected column '{col_string}' contains no valid numerical data.")
     return data
 
+def is_numeric_column(df, col):
+    """Check if a column is numeric or can be converted to numeric (handles blank cells)."""
+    try:
+        # First check if it's already numeric type
+        if pd.api.types.is_numeric_dtype(df[col]):
+            return True
+        # Otherwise, try converting to numeric and see if we get valid values after removing blanks
+        converted = pd.to_numeric(df[col], errors='coerce')
+        return not converted.dropna().empty
+    except Exception:
+        return False
+
 def calculate_descriptive_statistics(data):
     if not isinstance(data, pd.Series): data = pd.Series(data)
     data = pd.to_numeric(data, errors='coerce').dropna()
     if data.empty: return {"Error": "Input data contains no valid numerical values after cleaning."}
+    def q_value(series, q):
+        return compute_quartile(series, q)
     # Use OrderedDict to maintain specific order: five-number summary first
     from collections import OrderedDict
     stats_dict = OrderedDict([
         ('Min Value', data.min()),
-        ('Q1 (25th Percentile)', data.quantile(0.25)),
+        ('Q1 (25th Percentile)', q_value(data, 0.25)),
         ('Median', data.median()),
-        ('Q3 (75th Percentile)', data.quantile(0.75)),
+        ('Q3 (75th Percentile)', q_value(data, 0.75)),
         ('Max Value', data.max()),
         ('n', data.count()),
         ('Mean', data.mean()),
@@ -1316,7 +1409,7 @@ def calculate_descriptive_statistics(data):
         ('Standard Deviation (s)', data.std()),
         ('Variance', data.var()),
         ('Range', data.max() - data.min()),
-        ('IQR', data.quantile(0.75) - data.quantile(0.25)),
+        ('IQR', q_value(data, 0.75) - q_value(data, 0.25)),
         ('Skewness', data.skew()),
         ('Kurtosis', data.kurtosis())
     ])
@@ -1612,8 +1705,7 @@ def plot_histogram(data, bins='auto', title='Histogram', xlabel='Value', ylabel=
     if not isinstance(data, pd.Series): data = pd.Series(data)
     numeric_data = pd.to_numeric(data, errors='coerce').dropna()
     if numeric_data.empty: raise ValueError("Input data contains no valid numerical data for histogram.")
-    fig, ax = plt.subplots(figsize=(7.5, 4.5))
-    
+
     # If force_integer_bins is True, create integer bin edges while maintaining the number of bins
     if force_integer_bins and isinstance(bins, int):
         data_min, data_max = numeric_data.min(), numeric_data.max()
@@ -1624,29 +1716,39 @@ def plot_histogram(data, bins='auto', title='Histogram', xlabel='Value', ylabel=
         # Extend by one bin width to ensure max value gets its own bin with [,) rule
         bins = np.arange(bin_start, bin_end + bin_width + 1, bin_width)
     
-    # Note: matplotlib's hist() uses [,) rule for all bins EXCEPT the last one
-    # To enforce strict [,) for all bins, we extend bins and ensure the last bin includes the max
-    # For strict [,) intervals: [a,b) means a is included, b goes to next bin
+    if isinstance(bins, str) and bins == 'auto':
+        bin_edges = np.histogram_bin_edges(numeric_data.to_numpy(), bins='auto')
+    else:
+        bin_edges = np.histogram_bin_edges(numeric_data.to_numpy(), bins=bins)
+
+    counts, _ = np.histogram(numeric_data.to_numpy(), bins=bin_edges)
     if use_relative:
-        weights = np.ones_like(numeric_data.to_numpy()) / len(numeric_data)
-        counts, bin_edges, patches = ax.hist(numeric_data.to_numpy(), bins=bins, weights=weights, edgecolor='black', alpha=0.7)
+        counts = counts / len(numeric_data)
         ylabel = 'Relative Frequency'
     else:
-        counts, bin_edges, patches = ax.hist(numeric_data.to_numpy(), bins=bins, edgecolor='black', alpha=0.7)
         ylabel = 'Frequency'
-    
-    # Set x-axis ticks to show bin edges
-    ax.set_xticks(bin_edges)
-    # Format bin edge labels - use integers if they are whole numbers or forced
+
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    bin_widths = bin_edges[1:] - bin_edges[:-1]
+
+    fig = go.Figure()
+    hover_label = 'Relative Frequency' if use_relative else 'Frequency'
+    fig.add_trace(
+        go.Bar(
+            x=bin_centers,
+            y=counts,
+            width=bin_widths,
+            marker=dict(color='#0173B2', line=dict(color='black', width=1)),
+            hovertemplate=f"{hover_label}=%{{y}}<extra></extra>"
+        )
+    )
+
+    tick_labels = []
     if len(bin_edges) > 0:
-        # Check if all bin edges are close to integers
         all_near_integers = all(abs(edge - round(edge)) < 0.01 for edge in bin_edges)
-        
         if force_integer_bins or all_near_integers:
-            # Display as integers
-            ax.set_xticklabels([f'{int(round(edge))}' for edge in bin_edges], rotation=45, ha='right')
+            tick_labels = [f'{int(round(edge))}' for edge in bin_edges]
         else:
-            # Determine decimal places needed based on bin width
             bin_width = bin_edges[1] - bin_edges[0] if len(bin_edges) > 1 else 1
             if bin_width < 0.01:
                 decimal_places = 4
@@ -1658,17 +1760,88 @@ def plot_histogram(data, bins='auto', title='Histogram', xlabel='Value', ylabel=
                 decimal_places = 1
             else:
                 decimal_places = 0
-            ax.set_xticklabels([f'{edge:.{decimal_places}f}' for edge in bin_edges], rotation=45, ha='right')
-    
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.grid(axis='y', alpha=0.75)
-    plt.tight_layout()
+            tick_labels = [f'{edge:.{decimal_places}f}' for edge in bin_edges]
+
+    fig.update_layout(
+        title=title,
+        xaxis_title=xlabel,
+        yaxis_title=ylabel,
+        bargap=0.05
+    )
+    if tick_labels:
+        fig.update_xaxes(tickvals=bin_edges, ticktext=tick_labels, tickangle=45)
+    fig.update_yaxes(showgrid=True, gridcolor='rgba(0, 0, 0, 0.2)')
     return fig
 
+def get_boxplot_statistics(data):
+    """Calculate boxplot statistics (min, q1, median, q3, max) from data.
+    
+    Args:
+        data: Single Series or list of Series
+        
+    Returns:
+        Dict or list of dicts with boxplot statistics
+    """
+    def q_value(series, q):
+        return compute_quartile(series, q)
+
+    def compute_whisker_stats(series):
+        numeric_data = pd.to_numeric(series, errors='coerce').dropna()
+        if numeric_data.empty:
+            return None
+        q1 = q_value(numeric_data, 0.25)
+        median = q_value(numeric_data, 0.5)
+        q3 = q_value(numeric_data, 0.75)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        inliers = numeric_data[(numeric_data >= lower_bound) & (numeric_data <= upper_bound)]
+        if inliers.empty:
+            whisker_low = numeric_data.min()
+            whisker_high = numeric_data.max()
+        else:
+            whisker_low = inliers.min()
+            whisker_high = inliers.max()
+        outliers = numeric_data[(numeric_data < lower_bound) | (numeric_data > upper_bound)]
+        return {
+            'min': numeric_data.min(),
+            'q1': q1,
+            'median': median,
+            'q3': q3,
+            'max': numeric_data.max(),
+            'whisker_low': whisker_low,
+            'whisker_high': whisker_high,
+            'outlier_count': int(outliers.shape[0])
+        }
+
+    if isinstance(data, list):
+        stats_list = []
+        for d in data:
+            if not isinstance(d, pd.Series):
+                d = pd.Series(d)
+            stats = compute_whisker_stats(d)
+            if stats:
+                stats_list.append(stats)
+        return stats_list
+    else:
+        if not isinstance(data, pd.Series):
+            data = pd.Series(data)
+        stats = compute_whisker_stats(data)
+        if not stats:
+            return {}
+        return stats
+
+def format_decimal(value, max_decimals=10):
+    """Format a number with up to max_decimals and no trailing zeros."""
+    try:
+        formatted = f"{float(value):.{max_decimals}f}"
+        return formatted.rstrip('0').rstrip('.')
+    except Exception:
+        return str(value)
+
+
 def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labels=None):
-    """Plot one or more boxplots on the same grid.
+    """Plot one or more boxplots on the same grid using Plotly Express.
     
     Args:
         data: Single Series or list of Series to plot
@@ -1677,39 +1850,172 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
         horizontal: If True, plot horizontally
         labels: List of labels for multiple boxplots (optional)
     """
-    # Handle single or multiple data series
+    def compute_whisker_stats(series):
+        numeric_data = pd.to_numeric(series, errors='coerce').dropna()
+        if numeric_data.empty:
+            return None
+        q1 = compute_quartile(numeric_data, 0.25)
+        median = compute_quartile(numeric_data, 0.5)
+        q3 = compute_quartile(numeric_data, 0.75)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        inliers = numeric_data[(numeric_data >= lower_bound) & (numeric_data <= upper_bound)]
+        if inliers.empty:
+            whisker_low = numeric_data.min()
+            whisker_high = numeric_data.max()
+        else:
+            whisker_low = inliers.min()
+            whisker_high = inliers.max()
+        outliers = numeric_data[(numeric_data < lower_bound) | (numeric_data > upper_bound)]
+        return {
+            'q1': q1,
+            'median': median,
+            'q3': q3,
+            'whisker_low': whisker_low,
+            'whisker_high': whisker_high,
+            'outliers': outliers
+        }
+
     if isinstance(data, list):
-        if len(data) == 0: raise ValueError("Input data is empty.")
-        data_list = []
+        if len(data) == 0:
+            raise ValueError("Input data is empty.")
+        series_list = []
         for d in data:
-            if not isinstance(d, pd.Series): d = pd.Series(d)
+            if not isinstance(d, pd.Series):
+                d = pd.Series(d)
             numeric_data = pd.to_numeric(d, errors='coerce').dropna()
             if not numeric_data.empty:
-                data_list.append(numeric_data.to_numpy())
-        if not data_list: raise ValueError("No valid numerical data found in any of the provided datasets.")
+                series_list.append(numeric_data)
+        if not series_list:
+            raise ValueError("No valid numerical data found in any of the provided datasets.")
+
+        if labels:
+            if len(labels) < len(series_list):
+                labels = labels + [f"Series {i + 1}" for i in range(len(labels), len(series_list))]
+            elif len(labels) > len(series_list):
+                labels = labels[:len(series_list)]
+        else:
+            labels = [f"Series {i + 1}" for i in range(len(series_list))]
+
+        fig = go.Figure()
+        for series_label, series_data in zip(labels, series_list):
+            stats = compute_whisker_stats(series_data)
+            if not stats:
+                continue
+            hovertext = (
+                f"Q1={stats['q1']:,.4f}<br>"
+                f"Median={stats['median']:,.4f}<br>"
+                f"Q3={stats['q3']:,.4f}"
+            )
+            trace = go.Box(
+                name=series_label,
+                x=None if horizontal else [series_label],
+                y=[series_label] if horizontal else None,
+                orientation='h' if horizontal else 'v',
+                q1=[stats['q1']],
+                median=[stats['median']],
+                q3=[stats['q3']],
+                lowerfence=[stats['whisker_low']],
+                upperfence=[stats['whisker_high']],
+                boxpoints=False,
+                hoveron='boxes',
+                hovertemplate=hovertext + "<extra></extra>"
+            )
+            fig.add_trace(trace)
+            if stats['outliers'] is not None and not stats['outliers'].empty:
+                if horizontal:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=stats['outliers'],
+                            y=[series_label] * len(stats['outliers']),
+                            mode='markers',
+                            marker=dict(color='rgba(31, 119, 180, 0.6)', size=6),
+                            showlegend=False,
+                            hoverinfo='skip'
+                        )
+                    )
+                else:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[series_label] * len(stats['outliers']),
+                            y=stats['outliers'],
+                            mode='markers',
+                            marker=dict(color='rgba(31, 119, 180, 0.6)', size=6),
+                            showlegend=False,
+                            hoverinfo='skip'
+                        )
+                    )
+        fig.update_layout(title=title)
+        if horizontal:
+            fig.update_layout(xaxis_title=ylabel, yaxis_title='')
+        else:
+            fig.update_layout(xaxis_title='', yaxis_title=ylabel)
     else:
-        if data.size == 0: raise ValueError("Input data is empty.")
-        if not isinstance(data, pd.Series): data = pd.Series(data)
+        if data.size == 0:
+            raise ValueError("Input data is empty.")
+        if not isinstance(data, pd.Series):
+            data = pd.Series(data)
         numeric_data = pd.to_numeric(data, errors='coerce').dropna()
-        if numeric_data.empty: raise ValueError("Input data contains no valid numerical data for boxplot.")
-        data_list = [numeric_data.to_numpy()]
-    
-    fig, ax = plt.subplots(figsize=(5, 3.5))
-    ax.boxplot(data_list, vert=not horizontal, labels=labels)
-    ax.set_title(title)
+        if numeric_data.empty:
+            raise ValueError("Input data contains no valid numerical data for boxplot.")
+        label = labels[0] if labels else 'Data'
+        stats = compute_whisker_stats(numeric_data)
+        if not stats:
+            raise ValueError("Input data contains no valid numerical data for boxplot.")
+        hovertext = (
+            f"Q1={stats['q1']:,.4f}<br>"
+            f"Median={stats['median']:,.4f}<br>"
+            f"Q3={stats['q3']:,.4f}"
+        )
+        trace = go.Box(
+            name=label,
+            x=None if horizontal else [label],
+            y=[label] if horizontal else None,
+            orientation='h' if horizontal else 'v',
+            q1=[stats['q1']],
+            median=[stats['median']],
+            q3=[stats['q3']],
+            lowerfence=[stats['whisker_low']],
+            upperfence=[stats['whisker_high']],
+            boxpoints=False,
+            hoveron='boxes',
+            hovertemplate=hovertext + "<extra></extra>"
+        )
+        fig = go.Figure(data=[trace])
+        if stats['outliers'] is not None and not stats['outliers'].empty:
+            if horizontal:
+                fig.add_trace(
+                    go.Scatter(
+                        x=stats['outliers'],
+                        y=[label] * len(stats['outliers']),
+                        mode='markers',
+                        marker=dict(color='rgba(31, 119, 180, 0.6)', size=6),
+                        showlegend=False,
+                        hoverinfo='skip'
+                    )
+                )
+            else:
+                fig.add_trace(
+                    go.Scatter(
+                        x=[label] * len(stats['outliers']),
+                        y=stats['outliers'],
+                        mode='markers',
+                        marker=dict(color='rgba(31, 119, 180, 0.6)', size=6),
+                        showlegend=False,
+                        hoverinfo='skip'
+                    )
+                )
+        fig.update_layout(title=title)
+        if horizontal:
+            fig.update_layout(xaxis_title=ylabel, yaxis_title='')
+        else:
+            fig.update_layout(xaxis_title='', yaxis_title=ylabel)
+
     if horizontal:
-        ax.set_xlabel(ylabel)
-        if labels:
-            ax.set_yticks(range(1, len(labels) + 1))
-            ax.set_yticklabels(labels)
-        ax.grid(axis='x', alpha=0.75)
+        fig.update_xaxes(tickformat=",~f")
     else:
-        ax.set_ylabel(ylabel)
-        if labels:
-            ax.set_xticks(range(1, len(labels) + 1))
-            ax.set_xticklabels(labels, rotation=45, ha='right')
-        ax.grid(axis='y', alpha=0.75)
-    plt.tight_layout()
+        fig.update_yaxes(tickformat=",~f")
     return fig
 
 def plot_bar_plot(data, title='Bar Plot of Categories', xlabel='Category', ylabel='Frequency', stacked=False, use_relative=False):
@@ -1728,35 +2034,31 @@ def plot_bar_plot(data, title='Bar Plot of Categories', xlabel='Category', ylabe
         values = counts
         ylabel = 'Frequency'
     
-    fig, ax = plt.subplots(figsize=(7.5, 4.5))
-    
+    fig = go.Figure()
     if stacked:
         # Create a single stacked bar
-        bottom = 0
-        colors = plt.cm.Set3(range(len(counts)))
-        for i, (category, count) in enumerate(counts.items()):
-            height = values.iloc[i] if use_relative else count
-            ax.bar(0, height, bottom=bottom, color=colors[i], edgecolor='black', label=str(category))
-            bottom += height
-        ax.set_xlim(-0.5, 0.5)
-        ax.set_xticks([0])
-        ax.set_xticklabels(['All Categories'])
-        ax.legend(title=xlabel, bbox_to_anchor=(1.05, 1), loc='upper left')
+        for category, value in zip(counts.index, values):
+            fig.add_trace(
+                go.Bar(
+                    x=['All Categories'],
+                    y=[value],
+                    name=str(category)
+                )
+            )
+        fig.update_layout(barmode='stack', xaxis_title='Categories')
     else:
-        # Unstacked (grouped) bars - original behavior
         x_labels = [str(x) for x in counts.index]
-        x_positions = range(len(counts))
-        
-        # WCAG-compliant accessible teal
-        ax.bar(x_positions, values.values, color='#029E73', edgecolor='black')
-        ax.set_xticks(x_positions)
-        ax.set_xticklabels(x_labels, rotation=45, ha='right')
-    
-    ax.set_title(title)
-    ax.set_xlabel(xlabel if not stacked else 'Categories')
-    ax.set_ylabel(ylabel)
-    ax.grid(axis='y', alpha=0.75)
-    plt.tight_layout()
+        fig.add_trace(
+            go.Bar(
+                x=x_labels,
+                y=values.values,
+                marker=dict(color='#029E73', line=dict(color='black', width=1))
+            )
+        )
+        fig.update_xaxes(tickangle=45)
+
+    fig.update_layout(title=title, yaxis_title=ylabel, xaxis_title=xlabel if not stacked else 'Categories')
+    fig.update_yaxes(showgrid=True, gridcolor='rgba(0, 0, 0, 0.2)')
     return fig
 
 def plot_dot_plot(data, title='Dot Plot', xlabel='Value', ylabel='', dot_spacing=0.1):
@@ -1781,14 +2083,18 @@ def plot_dot_plot(data, title='Dot Plot', xlabel='Value', ylabel='', dot_spacing
         plot_y.append(value_counts[val] * dot_spacing)
         value_counts[val] += 1
 
-    fig, ax = plt.subplots(figsize=(7, 3.5))
-    ax.scatter(plot_x, plot_y, alpha=0.7, s=50, edgecolors='w', linewidth=0.5)
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_yticks([])  # Hide y-axis ticks as they represent stacking, not a continuous variable
-    ax.grid(axis='x', alpha=0.75)
-    plt.tight_layout()
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=plot_x,
+            y=plot_y,
+            mode='markers',
+            marker=dict(size=10, color='#0173B2', line=dict(color='white', width=0.5))
+        )
+    )
+    fig.update_layout(title=title, xaxis_title=xlabel, yaxis_title=ylabel)
+    fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False)
+    fig.update_xaxes(showgrid=True, gridcolor='rgba(0, 0, 0, 0.2)')
     return fig
 
 def plot_scatter_plot(x_data, y_data, title='Scatter Plot', xlabel='X-axis', ylabel='Y-axis'):
@@ -1798,14 +2104,18 @@ def plot_scatter_plot(x_data, y_data, title='Scatter Plot', xlabel='X-axis', yla
     if x_data.empty or y_data.empty: raise ValueError("Input data (after cleaning) is empty.")
     if len(x_data) != len(y_data): raise ValueError("x_data and y_data must have the same length.")
 
-    fig, ax = plt.subplots(figsize=(7.5, 4.5))
-    ax.scatter(x_data.to_numpy(), y_data.to_numpy(), alpha=0.7, edgecolors='w', linewidth=0.5)
-
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.grid(True)
-    plt.tight_layout()
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=x_data.to_numpy(),
+            y=y_data.to_numpy(),
+            mode='markers',
+            marker=dict(size=8, color='#0173B2', line=dict(color='white', width=0.5))
+        )
+    )
+    fig.update_layout(title=title, xaxis_title=xlabel, yaxis_title=ylabel)
+    fig.update_xaxes(showgrid=True, gridcolor='rgba(0, 0, 0, 0.2)')
+    fig.update_yaxes(showgrid=True, gridcolor='rgba(0, 0, 0, 0.2)')
     return fig
 def perform_linear_regression_analysis(x_data, y_data, title='Linear Regression Analysis', xlabel='X-axis', ylabel='Y-axis'):
     if x_data.empty or y_data.empty: raise ValueError("Input data is empty after cleaning.")
@@ -2183,6 +2493,8 @@ def load_google_sheets_from_url(sheets_url):
             df = pd.read_csv(url_to_use)
             
             if df is not None and not df.empty:
+                # Replace NaN values with blank cells for visual purposes
+                df = df.fillna('')
                 # Reset index to start at 1 instead of 0
                 df.index = range(1, len(df) + 1)
                 df.index.name = None
@@ -2410,10 +2722,14 @@ if selected_tab == "Data Input":
 
             if file_extension == 'csv':
                 df = pd.read_csv(uploaded_file)
+                # Replace NaN values with blank cells for visual purposes
+                df = df.fillna('')
             elif file_extension in ['xlsx', 'xls']:
                 try:
                     uploaded_file.seek(0)  # Reset file pointer to beginning
                     df = pd.read_excel(uploaded_file, engine='openpyxl')
+                    # Replace NaN values with blank cells for visual purposes
+                    df = df.fillna('')
                 except ImportError as ie:
                     st.error(f"Error: openpyxl is not installed. Details: {str(ie)}")
                     df = None
@@ -2494,11 +2810,6 @@ if selected_tab == "Data Input":
         # Initialize with one row if empty
         if 'table_data' not in st.session_state:
             st.session_state.table_data = pd.DataFrame({'Column 1': ['']})
-        
-        # Check if clear action was triggered
-        if st.session_state.get('clear_all_triggered', False):
-            st.session_state.table_data = pd.DataFrame({'Column 1': ['']})
-            st.session_state.clear_all_triggered = False
         
         # This is our working copy that persists across reruns
         table_data = st.session_state.table_data
@@ -2622,8 +2933,13 @@ if selected_tab == "Data Input":
     
         with col2:
             if st.button("🗑️ Clear All", key="clear_all_btn_unique"):
-                # Set flag to clear on next render
-                st.session_state.clear_all_triggered = True
+                # Clear all manual entry data and state
+                st.session_state.table_data = pd.DataFrame({'Column 1': ['']})
+                st.session_state.global_dataframes = {}
+                st.session_state.edited_data = pd.DataFrame()
+                # Clear the data_editor widget's internal state
+                if 'data_editor' in st.session_state:
+                    del st.session_state['data_editor']
                 st.rerun()
 
     # Display currently loaded dataframe
@@ -2631,61 +2947,7 @@ if selected_tab == "Data Input":
     if st.session_state.global_dataframes and 'active_data' in st.session_state.global_dataframes:
         df = st.session_state.global_dataframes['active_data']
         st.write(f"**Active Dataset** ({df.shape[0]} rows, {df.shape[1]} columns)")
-        
-        # Create tabs for view and edit modes
-        view_tab, edit_tab = st.tabs(["View Data", "Edit Data"])
-        
-        with view_tab:
-            show_table(df)
-        
-        with edit_tab:
-            st.markdown("""
-            <div role="region" aria-label="Data Editor">
-            <p id="data-editor-help">💡 Edit the table below to modify your data. Use Tab to navigate between cells. 
-            Click the '+' icon to add rows, or use the trash icon to delete rows.</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Always sync edited_data with current data to ensure consistency across input methods
-            st.session_state.edited_data = df.copy()
-            
-            # Display editable dataframe
-            edited_df = st.data_editor(
-                st.session_state.edited_data,
-                num_rows="dynamic",
-                use_container_width=True,
-                key="current_data_editor",
-                hide_index=True
-            )
-            
-            # Action buttons
-            col1, col2, col3 = st.columns([1, 1, 1])
-            
-            with col1:
-                if st.button("💾 Save Changes", key="save_edits_btn"):
-                    if edited_df is not None and len(edited_df) > 0:
-                        # Update the active data in session state
-                        st.session_state.global_dataframes['active_data'] = edited_df.copy()
-                        st.session_state.edited_data = edited_df.copy()
-                        st.success(f"✓ Data saved! Dataset now has {len(edited_df)} rows and {len(edited_df.columns)} columns.")
-                    else:
-                        st.error("Cannot save empty dataset.")
-            
-            with col2:
-                if st.button("🔄 Reset Changes", key="reset_edits_btn"):
-                    st.session_state.edited_data = df.copy()
-                    st.rerun()
-            
-            with col3:
-                if st.button("➕ Add Column", key="add_column_edit_btn"):
-                    col_num = len(edited_df.columns) + 1
-                    new_col_name = f"Column {col_num}"
-                    while new_col_name in edited_df.columns:
-                        col_num += 1
-                        new_col_name = f"Column {col_num}"
-                    edited_df[new_col_name] = ""
-                    st.session_state.edited_data = edited_df.copy()
-                    st.rerun()
+        show_table(df)
     else:
         st.info("No dataframes loaded yet.")
 
@@ -2827,8 +3089,8 @@ elif selected_tab == "Descriptive Statistics":
     else:
         selected_df = st.session_state.global_dataframes['active_data']
 
-        # Filter for numeric columns
-        numeric_cols = selected_df.select_dtypes(include=np.number).columns.tolist()
+        # Filter for numeric columns or columns that can be converted to numeric (handles blanks)
+        numeric_cols = [col for col in selected_df.columns if is_numeric_column(selected_df, col)]
 
         if not numeric_cols:
             st.warning("No numeric columns found in the active dataset. Please ensure your data contains numeric values.")
@@ -3048,7 +3310,7 @@ elif selected_tab == "Probability Distributions":
                     st.write(f"**b** = {b_val}")
                 st.markdown(f"<p style='color: black; font-size: 18px;'><b>Calculated Probability: {result:.6f}</b></p>", unsafe_allow_html=True)
                 if fig is not None:
-                    st.pyplot(fig)
+                    st.plotly_chart(fig, use_container_width=True)
                     # Accessibility: Add text alternative for screen readers
                     caption_text = f"{selected_dist_type} distribution plot. Parameters: {', '.join([f'{k}={v}' for k,v in params.items()])}. "
                     if calc_kwargs['calc_type'] == 'cdf':
@@ -4273,6 +4535,8 @@ elif selected_tab == "Visualizations":
             st.subheader("Generated Plot")
             try:
                 fig = None
+                boxplot_stats = None
+                labels = None
                 if plot_type == 'Histogram':
                     if not x_axis_col: raise ValueError("Please select a data column for the histogram.")
                     data = get_data_from_col_string(x_axis_col)
@@ -4287,6 +4551,7 @@ elif selected_tab == "Visualizations":
                             data_list = [get_data_from_col_string(col) for col in x_axis_col]
                             labels = [col.split(": ", 1)[1] if ": " in col else col for col in x_axis_col]
                             fig = plot_box_plot(data_list, title='Box Plots Comparison', ylabel='Value', horizontal=plot_options.get('horizontal', False), labels=labels)
+                            boxplot_stats = get_boxplot_statistics(data_list)
                         else:
                             raise ValueError("Please select at least one data column for the boxplot.")
                     else:
@@ -4294,6 +4559,7 @@ elif selected_tab == "Visualizations":
                         data = get_data_from_col_string(x_axis_col)
                         col_label = x_axis_col.split(": ", 1)[1] if ": " in x_axis_col else x_axis_col
                         fig = plot_box_plot(data, title=f'Box Plot of {col_label}', ylabel=col_label, horizontal=plot_options.get('horizontal', False))
+                        boxplot_stats = get_boxplot_statistics(data)
                 elif plot_type == 'Bar Plot':
                     if not x_axis_col: raise ValueError("Please select a data column for the bar plot.")
                     # Get data using the active dataframe
@@ -4328,7 +4594,46 @@ elif selected_tab == "Visualizations":
                     fig = plot_scatter_plot(combined_series['x_val'], combined_series['y_val'], title=f'Scatter Plot: {x_axis_col} vs {y_axis_col}', xlabel=x_axis_col, ylabel=y_axis_col)
 
                 if fig is not None:
-                    st.pyplot(fig)
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Display boxplot statistics if applicable
+                    if plot_type == 'Boxplot' and boxplot_stats is not None:
+                        st.markdown("---")
+                        st.subheader("📊 Boxplot Statistics")
+                        
+                        if isinstance(boxplot_stats, list):
+                            # Multiple boxplots
+                            for i, stats in enumerate(boxplot_stats):
+                                label = labels[i] if labels and i < len(labels) else f"Dataset {i+1}"
+                                with st.expander(f"📈 {label}", expanded=(i==0)):
+                                    col1, col2, col3 = st.columns(3)
+                                    with col1:
+                                        st.metric("Minimum", format_decimal(stats['min']))
+                                        st.metric("Q1 (25th Percentile)", format_decimal(stats['q1']))
+                                        st.metric("Whisker Low", format_decimal(stats['whisker_low']))
+                                    with col2:
+                                        st.metric("Median (50th Percentile)", format_decimal(stats['median']))
+                                        st.metric("Q3 (75th Percentile)", format_decimal(stats['q3']))
+                                        st.metric("Whisker High", format_decimal(stats['whisker_high']))
+                                    with col3:
+                                        st.metric("Maximum", format_decimal(stats['max']))
+                                        st.metric("IQR", format_decimal(stats['q3'] - stats['q1']))
+                                        st.metric("Outlier Count", stats['outlier_count'])
+                        else:
+                            # Single boxplot
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Minimum", format_decimal(boxplot_stats['min']))
+                                st.metric("Q1 (25th Percentile)", format_decimal(boxplot_stats['q1']))
+                                st.metric("Whisker Low", format_decimal(boxplot_stats['whisker_low']))
+                            with col2:
+                                st.metric("Median (50th Percentile)", format_decimal(boxplot_stats['median']))
+                                st.metric("IQR", format_decimal(boxplot_stats['q3'] - boxplot_stats['q1']))
+                                st.metric("Outlier Count", boxplot_stats['outlier_count'])
+                            with col3:
+                                st.metric("Q3 (75th Percentile)", format_decimal(boxplot_stats['q3']))
+                                st.metric("Maximum", format_decimal(boxplot_stats['max']))
+                                st.metric("Whisker High", format_decimal(boxplot_stats['whisker_high']))
 
             except ValueError as ve:
                 st.error(f"Plotting Error: {ve}")
