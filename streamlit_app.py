@@ -1494,9 +1494,9 @@ def calculate_descriptive_statistics(data):
     from collections import OrderedDict
     stats_dict = OrderedDict([
         ('Min Value', data.min()),
-        ('Q1 (25th Percentile)', q_value(data, 0.25)),
+        ('Q1', q_value(data, 0.25)),
         ('Median', data.median()),
-        ('Q3 (75th Percentile)', q_value(data, 0.75)),
+        ('Q3', q_value(data, 0.75)),
         ('Max Value', data.max()),
         ('n', data.count()),
         ('Mean', data.mean()),
@@ -3259,7 +3259,7 @@ elif selected_tab == "Descriptive Statistics":
                     'n', 'Mean', 'Median', 'Mode',
                     'Sample Standard Deviation', 'Variance', 'Range',
                     'Min Value', 'Max Value',
-                    'Q1 (25th Percentile)', 'Q3 (75th Percentile)', 'IQR',
+                    'Q1', 'Q3', 'IQR',
                     'Skewness', 'Kurtosis'
                 ]
                 
