@@ -95,8 +95,8 @@ try:
 except Exception:
     ST_AGRID_AVAILABLE = False
 # --- Streamlit App Configuration ---
-st.set_page_config(layout="wide", page_title="CueStat")
-st.title("CueStat: STAT C1000 Analysis Tool")
+st.set_page_config(layout="wide", page_title="CUESTAt: STAT C1000 Analysis Tool")
+st.title("CUESTAt: STAT C1000 Analysis Tool")
 
 # Inject noscript warning
 st.markdown("""
