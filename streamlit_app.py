@@ -98,6 +98,22 @@ except Exception:
 st.set_page_config(layout="wide", page_title="CUESTAt: STAT C1000 Analysis Tool")
 st.title("CUESTAt: STAT C1000 Analysis Tool")
 
+# --- Plotly Toolbar Configuration ---
+# Configure Plotly charts to always show toolbar with clear, accessible icons
+PLOTLY_CONFIG = {
+    'displayModeBar': True,  # Always show the mode bar (toolbar)
+    'displaylogo': False,  # Hide Plotly logo to save space
+    'responsive': True,  # Make responsive to container size
+    'modeBarButtonsToRemove': ['lasso2d'],  # Remove lasso select tool
+    'toImageButtonOptions': {
+        'format': 'png',
+        'filename': 'chart',
+        'height': 800,
+        'width': 1200,
+        'scale': 2
+    }
+}
+
 # Inject noscript warning
 st.markdown("""
 <noscript>
@@ -4646,7 +4662,7 @@ elif selected_tab == "Visualizations":
                     fig = plot_scatter_plot(combined_series['x_val'], combined_series['y_val'], title=f'Scatter Plot: {x_axis_col} vs {y_axis_col}', xlabel=x_axis_col, ylabel=y_axis_col)
 
                 if fig is not None:
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
                     
                     # Display boxplot statistics if applicable
                     if plot_type == 'Boxplot' and boxplot_stats is not None:
