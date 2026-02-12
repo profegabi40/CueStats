@@ -285,6 +285,75 @@ textarea:focus-visible {
   color: #6c757d !important; /* Medium gray - 4.5:1 ratio */
   opacity: 1 !important;
 }
+
+/* Darken Plotly modebar icons for better visibility */
+/* Target the modebar buttons and icons */
+.plotly .modebar {
+  background-color: #f8f9fa !important;
+}
+
+/* Style all modebar buttons - remove borders, center icons */
+.plotly .modebar-btn {
+  color: #1a1a1a !important;
+  opacity: 1 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 3px 4px !important;
+  margin: 0 2px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.plotly .modebar-btn:hover {
+  background-color: #e0e0e0 !important;
+  color: #000000 !important;
+  border: none !important;
+}
+
+/* Target SVG icons inside modebar buttons */
+.plotly .modebar-btn svg {
+  stroke: #1a1a1a !important;
+  fill: #1a1a1a !important;
+  opacity: 1 !important;
+  width: 20px !important;
+  height: 20px !important;
+  vertical-align: middle !important;
+}
+
+.plotly .modebar-btn:hover svg {
+  stroke: #000000 !important;
+  fill: #000000 !important;
+  opacity: 1 !important;
+}
+
+/* Style modebar group separators */
+.plotly .modebar-group {
+  border-right: 1px solid #d0d0d0 !important;
+}
+
+/* Improve button visibility in the modebar */
+.plotly .modebar-btn path {
+  stroke: #1a1a1a !important;
+  fill: #1a1a1a !important;
+}
+
+.plotly .modebar-btn:hover path {
+  stroke: #000000 !important;
+  fill: #000000 !important;
+}
+
+/* Darken icons for camera/download button - remove borders */
+.plotly .modebar-btn.active {
+  background-color: #e8e8e8 !important;
+  color: #000000 !important;
+  border: none !important;
+}
+
+.plotly .modebar-btn.active svg {
+  stroke: #000000 !important;
+  fill: #000000 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -2081,9 +2150,9 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
             fig.update_layout(xaxis_title='', yaxis_title=ylabel)
 
     if horizontal:
-        fig.update_xaxes(tickformat=",~f")
+        fig.update_xaxes(tickformat=",~f", nticks=10, showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.3)')
     else:
-        fig.update_yaxes(tickformat=",~f")
+        fig.update_yaxes(tickformat=",~f", nticks=10, showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.3)')
     return fig
 
 def plot_bar_plot(data, title='Bar Plot of Categories', xlabel='Category', ylabel='Frequency', stacked=False, use_relative=False):
