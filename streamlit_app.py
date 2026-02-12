@@ -2150,9 +2150,9 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
             fig.update_layout(xaxis_title='', yaxis_title=ylabel)
 
     if horizontal:
-        fig.update_xaxes(tickformat=",~f", tickmode='linear', tickfont=dict(size=14), tickcolor='black', showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.3)')
+        fig.update_xaxes(tickformat=",~f", tickmode='linear', tickfont=dict(size=14, color='black'), showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.3)')
     else:
-        fig.update_yaxes(tickformat=",~f", tickmode='linear', tickfont=dict(size=14), tickcolor='black', showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.3)')
+        fig.update_yaxes(tickformat=",~f", tickmode='linear', tickfont=dict(size=14, color='black'), showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.3)')
     return fig
 
 def plot_bar_plot(data, title='Bar Plot of Categories', xlabel='Category', ylabel='Frequency', stacked=False, use_relative=False):
