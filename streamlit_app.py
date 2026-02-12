@@ -1501,7 +1501,7 @@ def calculate_descriptive_statistics(data):
         ('n', data.count()),
         ('Mean', data.mean()),
         ('Mode', list(stats.mode(data, keepdims=True).mode) if len(stats.mode(data, keepdims=True).mode) > 1 else stats.mode(data, keepdims=True).mode[0]),
-        ('Standard Deviation (s)', data.std()),
+        ('Sample Standard Deviation', data.std()),
         ('Variance', data.var()),
         ('Range', data.max() - data.min()),
         ('IQR', q_value(data, 0.75) - q_value(data, 0.25)),
@@ -3257,7 +3257,7 @@ elif selected_tab == "Descriptive Statistics":
                 # Define all available statistics
                 all_stats = [
                     'n', 'Mean', 'Median', 'Mode',
-                    'Standard Deviation (s)', 'Variance', 'Range',
+                    'Sample Standard Deviation', 'Variance', 'Range',
                     'Min Value', 'Max Value',
                     'Q1 (25th Percentile)', 'Q3 (75th Percentile)', 'IQR',
                     'Skewness', 'Kurtosis'
