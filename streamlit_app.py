@@ -2748,61 +2748,46 @@ if selected_tab == "Data Input":
         st.subheader("Import from Google Sheets")
         st.markdown("""
         <div role="region" aria-label="Google Sheets Import Instructions">
-        <strong>Instructions for Publishing Your Google Sheet:</strong>
+        <strong>Instructions:</strong>
         <ol>
         <li>Open your Google Sheet in a web browser</li>
-        <li>Click <strong>File</strong> menu, then <strong>Share</strong>, then <strong>Publish to web</strong></li>
-        <li>In the dialog, choose <strong>Entire Document</strong> (or select a specific sheet)</li>
-        <li>For the format dropdown, select <strong>Comma-separated values (.csv)</strong></li>
-        <li>Click the <strong>Publish</strong> button and confirm</li>
-        <li>Copy the generated link (it will look like: https://docs.google.com/spreadsheets/d/e/...)</li>
+        <li>Click the <strong>Share</strong> button (top right)</li>
+        <li>Under "General access", select <strong>Anyone with the link</strong> (Viewer access is sufficient)</li>
+        <li>Click <strong>Copy link</strong></li>
         <li>Paste the link in the field below</li>
         </ol>
-        <p><strong>Note:</strong> The sheet must be published as CSV format, not as a web page.</p>
+        <p><strong>Note:</strong> The app will automatically convert your share link to the proper format.</p>
         </div>
         """, unsafe_allow_html=True)
         
         sheets_url = st.text_input(
             "Google Sheets URL * (Required)",
-            placeholder="Example: https://docs.google.com/spreadsheets/d/e/2PACX-1vS...",
-            help="Paste the CSV link you copied from 'Publish to web'. Must end with /pub?output=csv or similar.",
+            placeholder="Example: https://docs.google.com/spreadsheets/d/abc123.../edit?usp=sharing",
+            help="Paste your Google Sheets share link. Works with regular share links or published CSV links.",
             key="google_sheets_url_input"
         )
         
         if st.button("Load from Google Sheets", key="load_sheets_btn", help="Click to import data from the URL above"):
             if sheets_url:
-                with st.spinner("Loading data from Google Sheets..."):
-                    try:
-                        # Read CSV directly from the published URL
-                        df = pd.read_csv(sheets_url)
-                        
-                        if df is not None and not df.empty:
-                            # Reset index to start at 1 instead of 0
-                            df.index = range(1, len(df) + 1)
-                            df.index.name = None
-                            # Replace any existing dataframe with the new one
-                            st.session_state.global_dataframes = {'active_data': df}
-                            st.success(f"✅ Successfully loaded data from Google Sheets! Loaded {len(df)} rows and {len(df.columns)} columns.")
-                            st.write("**Preview of Loaded Data:**")
-                            show_table(df)
-                            
-                            # Reset manual entry if Google Sheets is loaded
-                            st.session_state.manual_entry_df = pd.DataFrame({'Column A': ['']})
-                        else:
-                            st.error("❌ Error: The Google Sheet appears to be empty. Please check that your sheet contains data and try again.")
-                    except pd.errors.ParserError as pe:
-                        st.error(f"❌ Error: Unable to parse the data from Google Sheets. {pe}")
-                        st.info("💡 **How to fix:** Make sure you published the sheet as 'Comma-separated values (.csv)' format, not as a web page or other format.")
-                    except Exception as e:
-                        st.error(f"❌ Error loading Google Sheets: {e}")
-                        st.info("""
-                        💡 **Troubleshooting steps:**
-                        - Verify the sheet is published to the web (File → Share → Publish to web)
-                        - Ensure you selected 'Comma-separated values (.csv)' as the format
-                        - Check that the URL starts with https://docs.google.com/spreadsheets/
-                        - Make sure the sheet is not restricted or private
-                        - Try copying the publish link again
-                        """)
+                df, error = load_google_sheets_from_url(sheets_url)
+                
+                if df is not None:
+                    st.success(f"✅ Successfully loaded data from Google Sheets! Loaded {len(df)} rows and {len(df.columns)} columns.")
+                    st.write("**Preview of Loaded Data:**")
+                    show_table(df)
+                    
+                    # Reset manual entry if Google Sheets is loaded
+                    st.session_state.manual_entry_df = pd.DataFrame({'Column A': ['']})
+                else:
+                    st.error(f"❌ Error: {error}")
+                    st.info("""
+                    💡 **Troubleshooting steps:**
+                    - Make sure the sheet is shared with "Anyone with the link" (click Share button → General access)
+                    - Check that the URL starts with https://docs.google.com/spreadsheets/
+                    - Verify the sheet contains data and is not empty
+                    - Try copying the share link again
+                    - If using a regular share link, ensure the sheet has public or link-sharing enabled
+                    """)
             else:
                 st.warning("⚠️ Required field: Please enter a Google Sheets URL in the field above before clicking Load.")
         
@@ -2813,7 +2798,7 @@ if selected_tab == "Data Input":
             st.markdown("""
             Want to share your Google Sheet so students can load it with one click? Create an auto-loading link:
             
-            1. First, get your Google Sheet publish URL from above
+            1. First, get your Google Sheets share link from above
             2. Then, create a link in this format and share it with your students:
             """)
             
