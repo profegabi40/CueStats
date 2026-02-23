@@ -104,8 +104,14 @@ See [ADA Compliance Review](ADA_COMPLIANCE_REVIEW_FINAL.md) for detailed accessi
    streamlit run streamlit_app.py
    ```
 
+   **Quick restart on port 8053 (recommended for this workspace):**
+   ```bash
+   ./restart_streamlit.sh
+   ```
+
 4. **Access the app**
-   - Open your browser to `http://localhost:8501`
+   - Open your browser to `http://localhost:8501` (default)
+   - If using `./restart_streamlit.sh`, use `http://localhost:8053`
    - The app should launch automatically
 
 ## 📦 Dependencies

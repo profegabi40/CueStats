@@ -1376,6 +1376,11 @@ if 'last_manual_process_time' not in st.session_state:
 if 'is_instructor' not in st.session_state:
     st.session_state.is_instructor = False
 
+
+def create_default_manual_entry_table(rows=30):
+    """Create the default manual-entry table with blank rows."""
+    return pd.DataFrame({'Column 1': [''] * rows})
+
 # --- Helper Functions ---
 def process_manual_entry_data(df):
     # Remove ALL auto-generated/internal columns (those with :: prefix)
@@ -1392,6 +1397,13 @@ def process_manual_entry_data(df):
         if not converted_col.isna().all():
             processed_df[col] = converted_col.fillna(processed_df[col]) # Fill non-numeric back with original string
     return processed_df
+
+def has_meaningful_dataframe_data(df):
+    """Return True only when a DataFrame has at least one non-blank data row."""
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return False
+    normalized_df = df.replace(r'^\s*$', np.nan, regex=True)
+    return not normalized_df.dropna(how='all').empty
 
 def sanitize_manual_entry_df_state():
     """Remove any internal columns (starting with '::') from the session manual_entry_df.
@@ -2702,13 +2714,9 @@ if selected_tab == "Data Input":
         # st.query_params values are lists when present in URL; handle both cases
         sheets_param = auto_load_url[0] if isinstance(auto_load_url, (list, tuple)) and len(auto_load_url) > 0 else auto_load_url
         if sheets_param:
-            st.info("📋 Auto-loading data from provided Google Sheets link...", icon="ℹ️")
             df, error = load_google_sheets_from_url(sheets_param)
 
             if df is not None and not df.empty:
-                st.success(f"✅ Successfully loaded data from Google Sheets! Loaded {len(df)} rows and {len(df.columns)} columns.")
-                st.write("**Preview of Loaded Data:**")
-                show_table(df)
                 st.markdown("---")
                 st.write("You can now proceed to analyze this data using the CueStat tools, or load different data below.")
                 # Mark that this dataset was auto-loaded from a query parameter so
@@ -2772,10 +2780,6 @@ if selected_tab == "Data Input":
                 df, error = load_google_sheets_from_url(sheets_url)
                 
                 if df is not None:
-                    st.success(f"✅ Successfully loaded data from Google Sheets! Loaded {len(df)} rows and {len(df.columns)} columns.")
-                    st.write("**Preview of Loaded Data:**")
-                    show_table(df)
-                    
                     # Reset manual entry if Google Sheets is loaded
                     st.session_state.manual_entry_df = pd.DataFrame({'Column A': ['']})
                 else:
@@ -2868,9 +2872,6 @@ if selected_tab == "Data Input":
                 df.index.name = None  # Set to None to avoid showing "None" header
                 # Replace any existing dataframe with the new one
                 st.session_state.global_dataframes = {'active_data': df}
-                st.success(f"Successfully uploaded and processed '{file_name}'. This replaces any previously loaded data.")
-                st.write("Uploaded data:")
-                show_table(df)
 
                 # --- Allow inline header renaming for the uploaded DataFrame ---
                 try:
@@ -2929,9 +2930,9 @@ if selected_tab == "Data Input":
     if input_method == "Manual Entry":
         st.subheader("Manual Data Entry")
         
-        # Initialize with one row if empty
+        # Initialize with 30 rows if empty
         if 'table_data' not in st.session_state:
-            st.session_state.table_data = pd.DataFrame({'Column 1': ['']})
+            st.session_state.table_data = create_default_manual_entry_table()
         
         # This is our working copy that persists across reruns
         table_data = st.session_state.table_data
@@ -2991,6 +2992,7 @@ if selected_tab == "Data Input":
             display_df,
             num_rows="dynamic",
             width="stretch",
+            height=390,
             key="data_editor",
             hide_index=True,  # Hide index to avoid "None" issue when adding rows
         )
@@ -3023,8 +3025,9 @@ if selected_tab == "Data Input":
         if auto_process_enabled and edited_df is not None and not edited_df.empty:
             if current_time - st.session_state.last_manual_process_time >= 0.5:
                 try:
-                    # Remove completely empty rows
-                    cleaned_data = edited_df.dropna(how='all')
+                    # Remove rows that are empty or only whitespace across all columns
+                    non_empty_mask = ~edited_df.replace(r'^\s*$', np.nan, regex=True).isna().all(axis=1)
+                    cleaned_data = edited_df.loc[non_empty_mask].copy()
                     if not cleaned_data.empty:
                         processed_manual_df = process_manual_entry_data(cleaned_data)
                         # Keep 1-based index for consistency with uploaded data
@@ -3056,7 +3059,7 @@ if selected_tab == "Data Input":
         with col2:
             if st.button("🗑️ Clear All", key="clear_all_btn_unique"):
                 # Clear all manual entry data and state
-                st.session_state.table_data = pd.DataFrame({'Column 1': ['']})
+                st.session_state.table_data = create_default_manual_entry_table()
                 st.session_state.global_dataframes = {}
                 st.session_state.edited_data = pd.DataFrame()
                 # Clear the data_editor widget's internal state
@@ -3064,14 +3067,33 @@ if selected_tab == "Data Input":
                     del st.session_state['data_editor']
                 st.rerun()
 
-    # Display currently loaded dataframe
-    st.subheader("Current Data:")
-    if st.session_state.global_dataframes and 'active_data' in st.session_state.global_dataframes:
+        # Save/export options for manual entry data
+        st.markdown("---")
+        st.markdown("**Save Manual Data**")
+        non_empty_save_mask = ~edited_df.replace(r'^\s*$', np.nan, regex=True).isna().all(axis=1)
+        data_to_save = edited_df.loc[non_empty_save_mask].copy()
+
+        if data_to_save.empty:
+            st.caption("Enter at least one non-empty row to enable saving.")
+        else:
+            data_to_save.index = range(1, len(data_to_save) + 1)
+            data_to_save.index.name = None
+
+            csv_bytes = data_to_save.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="💾 Save as CSV",
+                data=csv_bytes,
+                file_name="manual_entry_data.csv",
+                mime="text/csv",
+                key="manual_save_csv_btn"
+            )
+
+    # Display currently loaded dataframe only when meaningful data exists
+    if st.session_state.global_dataframes and 'active_data' in st.session_state.global_dataframes and has_meaningful_dataframe_data(st.session_state.global_dataframes['active_data']):
+        st.subheader("Current Data:")
         df = st.session_state.global_dataframes['active_data']
         st.write(f"**Active Dataset** ({df.shape[0]} rows, {df.shape[1]} columns)")
         show_table(df)
-    else:
-        st.info("No dataframes loaded yet.")
 
 elif selected_tab == "Tables":
     st.header("Tables")
