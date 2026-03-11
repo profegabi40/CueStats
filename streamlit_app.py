@@ -1703,7 +1703,14 @@ def plot_binomial_distribution(n, p, shade_k=None, shade_a=None, shade_b=None, c
     ax.set_title(f'Binomial Distribution (n={n}, p={p})', fontsize=14)
     ax.set_xlabel('Number of Successes (k)', fontsize=12)
     ax.set_ylabel('Probability', fontsize=12)
-    ax.set_xticks(k_values)
+    # Show fewer integer ticks for large n to avoid overlapping labels.
+    max_ticks = 15
+    if len(k_values) <= max_ticks:
+        tick_values = k_values
+    else:
+        tick_values = np.unique(np.linspace(0, n, num=max_ticks, dtype=int))
+    ax.set_xticks(tick_values)
+    ax.tick_params(axis='x', labelrotation=45)
     ax.set_ylim(bottom=0)
     ax.grid(True, alpha=0.5)
     plt.tight_layout()
@@ -4864,12 +4871,13 @@ elif selected_tab == "Simulations":
         col1, col2 = st.columns(2)
         
         with col1:
-            n_trials = st.slider(
+            n_trials = st.number_input(
                 "Number of Trials (n)", 
-                min_value=5, 
+                min_value=0, 
                 max_value=500, 
-                value=30,
-                help="Move the slider to see how the number of trials affects the approximation"
+                value=0,
+                step=1,
+                help="Type the sample size to see how the number of trials affects the approximation"
             )
         
         with col2:
@@ -4895,7 +4903,10 @@ elif selected_tab == "Simulations":
             
             # Create continuous x values for normal curve
             x_continuous = np.linspace(0, n_trials, 1000)
-            normal_pdf = stats.norm.pdf(x_continuous, loc=mean, scale=std_dev)
+            if std_dev > 0:
+                normal_pdf = stats.norm.pdf(x_continuous, loc=mean, scale=std_dev)
+            else:
+                normal_pdf = None
             
             # Create the plot
             fig, ax = plt.subplots(figsize=(12, 6))
@@ -4907,9 +4918,10 @@ elif selected_tab == "Simulations":
             plt.setp(stemlines, 'linewidth', 2)
             plt.setp(markerline, 'markersize', 6, 'markerfacecolor', 'steelblue', 'markeredgecolor', 'steelblue')
             
-            # Plot normal approximation as a curve
-            ax.plot(x_continuous, normal_pdf, 'r-', linewidth=2, 
-                    label=f'Normal(μ={mean:.2f}, σ={std_dev:.2f})')
+            # Plot normal approximation as a curve when variance is positive
+            if normal_pdf is not None:
+                ax.plot(x_continuous, normal_pdf, 'r-', linewidth=2, 
+                        label=f'Normal(μ={mean:.2f}, σ={std_dev:.2f})')
             
             # Add labels and title
             ax.set_xlabel('Number of Successes', fontsize=12)
@@ -4937,6 +4949,9 @@ elif selected_tab == "Simulations":
             else:
                 st.warning(f"⚠ Normal approximation may not be accurate: np = {np_value:.2f} and n(1-p) = {nq_value:.2f}")
                 st.write("**Rule of thumb**: The normal approximation works well when both np ≥ 10 and n(1-p) ≥ 10")
+
+            if n_trials == 0:
+                st.info("When n = 0, the binomial distribution is degenerate at X = 0 and a normal approximation is not meaningful.")
             
             st.write("""
             **What to observe:**

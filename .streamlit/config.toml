@@ -4,3 +4,7 @@ showErrorDetails = true
 [logger]
 level = "info"
 
+[server]
+port = 8054
+address = "0.0.0.0"
+

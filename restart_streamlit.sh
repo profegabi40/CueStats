@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PORT="${1:-8053}"
+PORT="${1:-8054}"
 APP_FILE="streamlit_app.py"
 PID_FILE="streamlit.pid"
 LOG_FILE="streamlit.log"
