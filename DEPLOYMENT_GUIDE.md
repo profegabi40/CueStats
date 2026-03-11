@@ -67,6 +67,7 @@ Your app will be available at:
    - Python version → Streamlit Cloud uses Python 3.9+
    - Runtime mismatch after reboot → Pin Python with `runtime.txt` (recommended: `python-3.11`)
    - Optional component install failures → Keep `streamlit-aggrid` optional unless actively used
+   - Health check `connect: connection refused` on `:8501` → Remove any fixed `[server].port` from `.streamlit/config.toml`
 
 ### Fix Dependencies
 
