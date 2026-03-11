@@ -5,7 +5,11 @@ numpy>=1.24.0
 scipy>=1.11.0
 matplotlib>=3.7.0
 plotly>=5.18.0
-streamlit-aggrid>=0.3.4
 # Required for Excel file support - explicitly pinned for Streamlit Cloud
 openpyxl==3.1.5
 et-xmlfile>=1.0.0
+
+# Optional dependency note:
+# `streamlit-aggrid` is intentionally omitted from required installs because
+# the app already falls back gracefully when `st_aggrid` is unavailable.
+# This reduces cloud deployment failures caused by transitive build issues.

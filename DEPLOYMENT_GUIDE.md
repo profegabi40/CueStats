@@ -65,6 +65,8 @@ Your app will be available at:
    - Missing dependencies → Check `requirements.txt`
    - Wrong file path → Ensure `streamlit_app.py` is in root
    - Python version → Streamlit Cloud uses Python 3.9+
+   - Runtime mismatch after reboot → Pin Python with `runtime.txt` (recommended: `python-3.11`)
+   - Optional component install failures → Keep `streamlit-aggrid` optional unless actively used
 
 ### Fix Dependencies
 
