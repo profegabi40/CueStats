@@ -109,6 +109,11 @@ See [ADA Compliance Review](ADA_COMPLIANCE_REVIEW_FINAL.md) for detailed accessi
    ./restart_streamlit.sh
    ```
 
+   **Restart and open the correct URL automatically:**
+   ```bash
+   ./restart_and_open_streamlit.sh
+   ```
+
 4. **Access the app**
    - Open your browser to `http://localhost:8501` (default)
    - If using `./restart_streamlit.sh`, use `http://localhost:8054`
