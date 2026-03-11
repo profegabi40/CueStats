@@ -126,11 +126,15 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv_fresh/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Runtime artifacts
+streamlit.pid
 
 # Spyder project settings
 .spyderproject
