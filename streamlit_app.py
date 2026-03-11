@@ -2629,6 +2629,50 @@ def safe_rerun():
         except Exception:
             pass
 
+
+def get_query_param(name):
+    """Compatibility helper for query params across Streamlit versions."""
+    try:
+        qp = getattr(st, "query_params", None)
+        if qp is not None:
+            return qp.get(name, None)
+    except Exception:
+        pass
+
+    try:
+        get_qp = getattr(st, "experimental_get_query_params", None)
+        if callable(get_qp):
+            params = get_qp() or {}
+            return params.get(name, None)
+    except Exception:
+        pass
+
+    return None
+
+
+def clear_query_param(name):
+    """Best-effort removal of a query parameter across Streamlit versions."""
+    # New API: st.query_params
+    try:
+        qp = getattr(st, "query_params", None)
+        if qp is not None and name in qp:
+            del qp[name]
+            return
+    except Exception:
+        pass
+
+    # Legacy API: st.experimental_set_query_params
+    try:
+        get_qp = getattr(st, "experimental_get_query_params", None)
+        set_qp = getattr(st, "experimental_set_query_params", None)
+        if callable(get_qp) and callable(set_qp):
+            params = get_qp() or {}
+            if name in params:
+                params.pop(name, None)
+                set_qp(**params)
+    except Exception:
+        pass
+
 # --- Helper Function for Auto-Loading Google Sheets ---
 def load_google_sheets_from_url(sheets_url):
     """Attempt to load a Google Sheets CSV from a URL."""
@@ -2699,8 +2743,7 @@ if selected_tab == "Data Input":
     # Check for auto-load Google Sheets URL in query parameters.
     # Note: creating auto-load links remains an instructor-only action,
     # but students should be able to *use* a link posted by an instructor.
-    query_params = st.query_params
-    auto_load_url = query_params.get('sheets_url', None)
+    auto_load_url = get_query_param('sheets_url')
 
     # FIRST: If a dataset was previously auto-loaded but sheets_url param is now missing,
     # immediately clear the auto-loaded data and remove the query param from the URL.
@@ -2711,8 +2754,7 @@ if selected_tab == "Data Input":
             st.session_state.manual_entry_df = pd.DataFrame({'Column A': ['']})
             st.session_state['auto_loaded_sheets'] = False
             # Remove the sheets_url param from the URL to show clean state
-            if 'sheets_url' in st.query_params:
-                del st.query_params['sheets_url']
+            clear_query_param('sheets_url')
         except Exception:
             pass
 
@@ -2731,8 +2773,7 @@ if selected_tab == "Data Input":
                 try:
                     st.session_state['auto_loaded_sheets'] = True
                     # Clear the sheets_url from the URL so "Start New Session" starts with a clean URL
-                    if 'sheets_url' in st.query_params:
-                        del st.query_params['sheets_url']
+                    clear_query_param('sheets_url')
                 except Exception:
                     pass
                 if not st.session_state.is_instructor:
