@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PORT="${1:-8054}"
+PORT="${1:-8501}"
 APP_FILE="streamlit_app.py"
 PID_FILE="streamlit.pid"
 LOG_FILE="streamlit.log"
 
-if [[ -x "/workspaces/CompuStats/.venv_fresh/bin/python" ]]; then
-  PYTHON_BIN="/workspaces/CompuStats/.venv_fresh/bin/python"
+if [[ -x "/workspaces/CompuStats/.venv_new_20260410/bin/python" ]]; then
+  PYTHON_BIN="/workspaces/CompuStats/.venv_new_20260410/bin/python"
+elif [[ -x "/workspaces/CompuStats/.venv/bin/python" ]]; then
+  PYTHON_BIN="/workspaces/CompuStats/.venv/bin/python"
 elif [[ -x "/workspaces/CompuStats/venv/bin/python" ]]; then
   PYTHON_BIN="/workspaces/CompuStats/venv/bin/python"
 else
@@ -26,6 +28,12 @@ fi
 
 pkill -f "streamlit run ${APP_FILE} --server.port ${PORT}" >/dev/null 2>&1 || true
 
+# Ensure target port is free even if process was started outside this script.
+PORT_PID="$(lsof -t -iTCP:"${PORT}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true)"
+if [[ -n "${PORT_PID}" ]]; then
+  kill "${PORT_PID}" >/dev/null 2>&1 || true
+fi
+
 nohup "$PYTHON_BIN" -m streamlit run "$APP_FILE" --server.port "$PORT" --server.address 0.0.0.0 > "$LOG_FILE" 2>&1 &
 NEW_PID=$!
 echo "$NEW_PID" > "$PID_FILE"
@@ -34,6 +42,7 @@ sleep 2
 
 if ps -p "$NEW_PID" >/dev/null 2>&1; then
   echo "Streamlit restarted successfully"
+  echo "Python: $PYTHON_BIN"
   echo "PID: $NEW_PID"
   echo "Port: $PORT"
   echo "URL: http://localhost:$PORT"

@@ -360,6 +360,8 @@ textarea:focus-visible {
 # Inject JavaScript for accessibility fixes
 st.markdown("""
 <script>
+const ENABLE_A11Y_DOM_FIXES = false;
+if (ENABLE_A11Y_DOM_FIXES) {
 // Fix ARIA attributes on Streamlit iframes
 (function() {
     // Wait for DOM to be ready
@@ -1357,6 +1359,7 @@ st.markdown("""
     setTimeout(ensureHeadingStructure, 1000);
     setTimeout(ensureHeadingStructure, 2000);
 })();
+}
 </script>
 """, unsafe_allow_html=True)
 
@@ -1653,6 +1656,13 @@ def plot_normal_distribution(mean, std_dev, x_min_factor=-4, x_max_factor=4, num
         ax.fill_between(x_values[shade_mask], pdf_values[shade_mask], alpha=0.3, color='skyblue', label=f'P({shade_a} < X < {shade_b})')
         ax.axvline(shade_a, color='r', linestyle='--', linewidth=2, label=f'a = {shade_a}')
         ax.axvline(shade_b, color='r', linestyle='--', linewidth=2, label=f'b = {shade_b}')
+    elif calc_type == 'two_tail' and shade_a is not None and shade_b is not None:
+        lower_mask = x_values <= shade_a
+        upper_mask = x_values >= shade_b
+        ax.fill_between(x_values[lower_mask], pdf_values[lower_mask], alpha=0.3, color='skyblue', label='Two-tail area')
+        ax.fill_between(x_values[upper_mask], pdf_values[upper_mask], alpha=0.3, color='skyblue')
+        ax.axvline(shade_a, color='r', linestyle='--', linewidth=2, label=f'lower x = {shade_a}')
+        ax.axvline(shade_b, color='r', linestyle='--', linewidth=2, label=f'upper x = {shade_b}')
     
     ax.set_title(f'Normal Distribution (μ={mean}, σ={std_dev})', fontsize=14)
     ax.set_xlabel('X', fontsize=12)
@@ -2001,6 +2011,8 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
             'outliers': outliers
         }
 
+    max_outlier_markers = 2000
+
     if isinstance(data, list):
         if len(data) == 0:
             raise ValueError("Input data is empty.")
@@ -2034,8 +2046,8 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
             )
             trace = go.Box(
                 name=series_label,
-                x=None if horizontal else [series_label],
-                y=[series_label] if horizontal else None,
+                x0=series_label if not horizontal else None,
+                y0=series_label if horizontal else None,
                 orientation='h' if horizontal else 'v',
                 q1=[stats['q1']],
                 median=[stats['median']],
@@ -2064,11 +2076,14 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
                 )
             )
             if stats['outliers'] is not None and not stats['outliers'].empty:
+                outliers_to_plot = stats['outliers']
+                if len(outliers_to_plot) > max_outlier_markers:
+                    outliers_to_plot = outliers_to_plot.sample(n=max_outlier_markers, random_state=42)
                 if horizontal:
                     fig.add_trace(
                         go.Scatter(
-                            x=stats['outliers'],
-                            y=[series_label] * len(stats['outliers']),
+                            x=outliers_to_plot,
+                            y=[series_label] * len(outliers_to_plot),
                             mode='markers',
                             marker=dict(color='rgba(31, 119, 180, 0.6)', size=6),
                             showlegend=False,
@@ -2078,8 +2093,8 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
                 else:
                     fig.add_trace(
                         go.Scatter(
-                            x=[series_label] * len(stats['outliers']),
-                            y=stats['outliers'],
+                            x=[series_label] * len(outliers_to_plot),
+                            y=outliers_to_plot,
                             mode='markers',
                             marker=dict(color='rgba(31, 119, 180, 0.6)', size=6),
                             showlegend=False,
@@ -2110,8 +2125,8 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
         )
         trace = go.Box(
             name=label,
-            x=None if horizontal else [label],
-            y=[label] if horizontal else None,
+            x0=label if not horizontal else None,
+            y0=label if horizontal else None,
             orientation='h' if horizontal else 'v',
             q1=[stats['q1']],
             median=[stats['median']],
@@ -2140,11 +2155,14 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
             )
         )
         if stats['outliers'] is not None and not stats['outliers'].empty:
+            outliers_to_plot = stats['outliers']
+            if len(outliers_to_plot) > max_outlier_markers:
+                outliers_to_plot = outliers_to_plot.sample(n=max_outlier_markers, random_state=42)
             if horizontal:
                 fig.add_trace(
                     go.Scatter(
-                        x=stats['outliers'],
-                        y=[label] * len(stats['outliers']),
+                        x=outliers_to_plot,
+                        y=[label] * len(outliers_to_plot),
                         mode='markers',
                         marker=dict(color='rgba(31, 119, 180, 0.6)', size=6),
                         showlegend=False,
@@ -2154,8 +2172,8 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
             else:
                 fig.add_trace(
                     go.Scatter(
-                        x=[label] * len(stats['outliers']),
-                        y=stats['outliers'],
+                        x=[label] * len(outliers_to_plot),
+                        y=outliers_to_plot,
                         mode='markers',
                         marker=dict(color='rgba(31, 119, 180, 0.6)', size=6),
                         showlegend=False,
@@ -2169,7 +2187,7 @@ def plot_box_plot(data, title='Box Plot', ylabel='Value', horizontal=False, labe
             fig.update_layout(xaxis_title='', yaxis_title=ylabel)
 
     if horizontal:
-        fig.update_xaxes(tickformat=",~f", tickmode='linear', tickfont=dict(size=14, color='black'), showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.3)')
+        fig.update_xaxes(tickformat=",~f", tickmode='auto', tickfont=dict(size=14, color='black'), showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.3)')
     else:
         fig.update_yaxes(tickformat=",~f", tickmode='auto', tickfont=dict(size=12, color='black'), showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.3)')
     return fig
@@ -2226,6 +2244,12 @@ def plot_dot_plot(data, title='Dot Plot', xlabel='Value', ylabel='', dot_spacing
     # Sort data to ensure consistent stacking order for identical values
     sorted_values = np.sort(numeric_data.to_numpy())
 
+    # Cap rendered points to keep large plots responsive.
+    max_render_points = 12000
+    if len(sorted_values) > max_render_points:
+        sample_idx = np.linspace(0, len(sorted_values) - 1, max_render_points, dtype=int)
+        sorted_values = sorted_values[sample_idx]
+
     # Prepare x and y coordinates for scatter plot
     plot_x = []
     plot_y = []
@@ -2260,11 +2284,21 @@ def plot_scatter_plot(x_data, y_data, title='Scatter Plot', xlabel='X-axis', yla
     if x_data.empty or y_data.empty: raise ValueError("Input data (after cleaning) is empty.")
     if len(x_data) != len(y_data): raise ValueError("x_data and y_data must have the same length.")
 
+    x_values = x_data.to_numpy()
+    y_values = y_data.to_numpy()
+
+    # Cap rendered points to avoid browser slowdowns/timeouts on very large datasets.
+    max_render_points = 15000
+    if len(x_values) > max_render_points:
+        sample_idx = np.linspace(0, len(x_values) - 1, max_render_points, dtype=int)
+        x_values = x_values[sample_idx]
+        y_values = y_values[sample_idx]
+
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
-            x=x_data.to_numpy(),
-            y=y_data.to_numpy(),
+            x=x_values,
+            y=y_values,
             mode='markers',
             marker=dict(size=8, color='#0173B2', line=dict(color='white', width=0.5))
         )
@@ -2564,7 +2598,7 @@ if selected_tab == "Start New Session":
     st.warning("⚠️ This will clear all data and reset the application to its initial state.")
     st.write("**The following will be cleared:**")
     st.write("- All uploaded and manually entered data")
-    st.write("- All session state and saved parameters")
+    st.write("- All session state and saved inputs")
     st.write("- All analysis results")
     
     col1, col2, col3 = st.columns([1, 1, 2])
@@ -3384,7 +3418,7 @@ elif selected_tab == "Probability Distributions":
         key="dist_type_select"
     )
 
-    st.subheader("Distribution Parameters")
+    st.subheader("Distribution Inputs")
     params = {}
     if selected_dist_type == 'Normal':
         params['mean'] = st.number_input('Mean (μ):', value=0.0, step=0.1, key="normal_mean")
@@ -3416,13 +3450,18 @@ elif selected_tab == "Probability Distributions":
             key="prob_calc_type"
         )
     else:
+        inverse_normal_options = [
+            'Inverse Normal (find x from left-tail p)',
+            'Inverse Normal (find x from right-tail p)',
+            'Inverse Normal (find two values for in-between probability p)'
+        ]
         selected_calc_type = st.selectbox(
             "Calculation Type",
-            options=['P(X < a)', 'P(X > a)', 'P(a < X < b)'],
+            options=['P(X < a)', 'P(X > a)', 'P(a < X < b)'] + (inverse_normal_options if selected_dist_type == 'Normal' else []),
             key="prob_calc_type"
         )
 
-    x_val, a_val, b_val = None, None, None
+    x_val, a_val, b_val, p_val = None, None, None, None
     if selected_calc_type in ['P(X < a)', 'P(X > a)', 'P(X = k)', 'P(X ≤ k)', 'P(X ≥ k)', 'P(X < k)', 'P(X > k)']:
         if selected_dist_type == 'Binomial':
             x_val = st.number_input('Value of k:', value=0, min_value=0, step=1, key="prob_x_input")
@@ -3440,6 +3479,12 @@ elif selected_tab == "Probability Distributions":
                 b_val = st.number_input('Value of b:', value=1, min_value=0, step=1, key="prob_b_input")
             else:
                 b_val = st.number_input('Value of b:', value=1.0, step=0.1, key="prob_b_input")
+    elif selected_calc_type == 'Inverse Normal (find x from left-tail p)':
+        p_val = st.number_input('Left-tail probability p = P(X < x):', value=0.95, min_value=0.000001, max_value=0.999999, step=0.01, format="%.6f", key="prob_inverse_p_input")
+    elif selected_calc_type == 'Inverse Normal (find x from right-tail p)':
+        p_val = st.number_input('Right-tail probability p = P(X > x):', value=0.05, min_value=0.000001, max_value=0.999999, step=0.01, format="%.6f", key="prob_inverse_right_p_input")
+    elif selected_calc_type == 'Inverse Normal (find two values for in-between probability p)':
+        p_val = st.number_input('In-between probability p = P(lower < X < upper):', value=0.95, min_value=0.000001, max_value=0.999999, step=0.01, format="%.6f", key="prob_inverse_middle_p_input")
 
     if st.button("Calculate Probability and Plot", key="calc_prob_button"):
         st.subheader("Calculation Results")
@@ -3473,10 +3518,28 @@ elif selected_tab == "Probability Distributions":
                 else:
                     calc_kwargs['a'] = a_val
                     calc_kwargs['b'] = b_val
+            elif selected_calc_type in [
+                'Inverse Normal (find x from left-tail p)',
+                'Inverse Normal (find x from right-tail p)',
+                'Inverse Normal (find two values for in-between probability p)'
+            ]:
+                calc_kwargs['p'] = p_val
 
             if selected_dist_type == 'Normal':
-                result = calculate_normal_distribution(**params, **calc_kwargs)
-                fig = plot_normal_distribution(**params, shade_x=x_val, shade_a=a_val, shade_b=b_val, calc_type=calc_kwargs['calc_type'])
+                if selected_calc_type == 'Inverse Normal (find x from left-tail p)':
+                    result = stats.norm.ppf(calc_kwargs['p'], loc=params['mean'], scale=params['std_dev'])
+                    fig = plot_normal_distribution(**params, shade_x=result, shade_a=None, shade_b=None, calc_type='cdf')
+                elif selected_calc_type == 'Inverse Normal (find x from right-tail p)':
+                    result = stats.norm.ppf(1 - calc_kwargs['p'], loc=params['mean'], scale=params['std_dev'])
+                    fig = plot_normal_distribution(**params, shade_x=result, shade_a=None, shade_b=None, calc_type='survival')
+                elif selected_calc_type == 'Inverse Normal (find two values for in-between probability p)':
+                    lower_result = stats.norm.ppf((1 - calc_kwargs['p']) / 2, loc=params['mean'], scale=params['std_dev'])
+                    upper_result = stats.norm.ppf((1 + calc_kwargs['p']) / 2, loc=params['mean'], scale=params['std_dev'])
+                    result = (lower_result, upper_result)
+                    fig = plot_normal_distribution(**params, shade_x=None, shade_a=lower_result, shade_b=upper_result, calc_type='interval')
+                else:
+                    result = calculate_normal_distribution(**params, **calc_kwargs)
+                    fig = plot_normal_distribution(**params, shade_x=x_val, shade_a=a_val, shade_b=b_val, calc_type=calc_kwargs['calc_type'])
             elif selected_dist_type == 'Binomial':
                 result = calculate_binomial_distribution(**params, **calc_kwargs)
                 fig = plot_binomial_distribution(**params, shade_k=x_val, shade_a=a_val, shade_b=b_val, calc_type=calc_kwargs['calc_type'])
@@ -3492,7 +3555,7 @@ elif selected_tab == "Probability Distributions":
 
             if result is not None:
                 st.write(f"--- **{selected_dist_type} Distribution Calculation** ---")
-                st.write(f"**Parameters**: {params}")
+                st.write(f"**Inputs**: {params}")
                 st.write(f"**Calculation Type**: {selected_calc_type}")
                 if x_val is not None:
                     st.write(f"**x** = {x_val}")
@@ -3500,12 +3563,32 @@ elif selected_tab == "Probability Distributions":
                     st.write(f"**a** = {a_val}")
                 if b_val is not None:
                     st.write(f"**b** = {b_val}")
-                st.markdown(f"<p style='color: black; font-size: 18px;'><b>Calculated Probability: {result:.6f}</b></p>", unsafe_allow_html=True)
+                if selected_calc_type in [
+                    'Inverse Normal (find x from left-tail p)',
+                    'Inverse Normal (find x from right-tail p)',
+                    'Inverse Normal (find two values for in-between probability p)'
+                ]:
+                    st.write(f"**p** = {p_val}")
+                    if selected_calc_type == 'Inverse Normal (find two values for in-between probability p)':
+                        st.markdown(
+                            f"<p style='color: black; font-size: 18px;'><b>Inverse Normal values: lower = {result[0]:.6f}, upper = {result[1]:.6f}</b></p>",
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown(f"<p style='color: black; font-size: 18px;'><b>Inverse Normal x-value: {result:.6f}</b></p>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<p style='color: black; font-size: 18px;'><b>Calculated Probability: {result:.6f}</b></p>", unsafe_allow_html=True)
                 if fig is not None:
                     st.pyplot(fig)
                     # Accessibility: Add text alternative for screen readers
-                    caption_text = f"{selected_dist_type} distribution plot. Parameters: {', '.join([f'{k}={v}' for k,v in params.items()])}. "
-                    if calc_kwargs['calc_type'] == 'cdf':
+                    caption_text = f"{selected_dist_type} distribution plot. Inputs: {', '.join([f'{k}={v}' for k,v in params.items()])}. "
+                    if selected_calc_type == 'Inverse Normal (find x from left-tail p)':
+                        caption_text += f"Shows inverse normal result x={result:.6f} such that P(X < x) = {p_val:.6f}."
+                    elif selected_calc_type == 'Inverse Normal (find x from right-tail p)':
+                        caption_text += f"Shows inverse normal result x={result:.6f} such that P(X > x) = {p_val:.6f}."
+                    elif selected_calc_type == 'Inverse Normal (find two values for in-between probability p)':
+                        caption_text += f"Shows inverse normal values lower={result[0]:.6f} and upper={result[1]:.6f} such that P(lower < X < upper) = {p_val:.6f}."
+                    elif calc_kwargs['calc_type'] == 'cdf':
                         caption_text += f"Shows cumulative probability P(X ≤ {x_val}) = {result:.6f}. Shaded area represents probability."
                     elif calc_kwargs['calc_type'] == 'survival':
                         caption_text += f"Shows survival probability P(X ≥ {x_val}) = {result:.6f}. Shaded area represents probability."
@@ -3548,7 +3631,7 @@ elif selected_tab == "Confidence Intervals":
 
     input_method = st.radio("Input Method", options=input_method_options, key="ci_input_method")
 
-    st.subheader("Parameters")
+    st.subheader("Inputs")
 
     # Dynamic parameter inputs based on CI type and input method
     params = {}
@@ -3655,58 +3738,152 @@ elif selected_tab == "Confidence Intervals":
         st.subheader("Calculation Results")
         try:
             lower_bound, upper_bound = None, None
+            sample_statistic, std_error, margin_of_error = None, None, None
 
             if selected_ci_type == 'Mean (sigma unknown) - t-interval':
                 if input_method == 'Raw Data':
                     data = get_data_from_col_string(params['data_column'])
-                    lower_bound, upper_bound = ci_mean_sigma_unknown(data.mean(), data.std(), len(data), confidence_level)
+                    sample_mean = data.mean()
+                    sample_std_dev = data.std()
+                    sample_size = len(data)
+                    lower_bound, upper_bound = ci_mean_sigma_unknown(sample_mean, sample_std_dev, sample_size, confidence_level)
                 else:
-                    lower_bound, upper_bound = ci_mean_sigma_unknown(params['sample_mean'], params['sample_std_dev'], params['sample_size'], confidence_level)
+                    sample_mean = params['sample_mean']
+                    sample_std_dev = params['sample_std_dev']
+                    sample_size = params['sample_size']
+                    lower_bound, upper_bound = ci_mean_sigma_unknown(sample_mean, sample_std_dev, sample_size, confidence_level)
+
+                alpha = 1 - confidence_level
+                t_critical = stats.t.ppf(1 - alpha / 2, df=sample_size - 1)
+                sample_statistic = sample_mean
+                std_error = sample_std_dev / np.sqrt(sample_size)
+                margin_of_error = t_critical * std_error
 
             elif selected_ci_type == 'Proportion':
                 lower_bound, upper_bound = ci_proportion(params['num_successes'], params['num_trials'], confidence_level)
+                sample_statistic = params['num_successes'] / params['num_trials']
+                alpha = 1 - confidence_level
+                z_critical = stats.norm.ppf(1 - alpha / 2)
+                std_error = np.sqrt((sample_statistic * (1 - sample_statistic)) / params['num_trials'])
+                margin_of_error = z_critical * std_error
 
             elif selected_ci_type == 'Difference Between Two Means (Independent, sigma known)':
                 if input_method == 'Raw Data':
                     data1 = get_data_from_col_string(params['data_column1'])
                     data2 = get_data_from_col_string(params['data_column2'])
-                    lower_bound, upper_bound = ci_diff_means_sigma_known(data1.mean(), params['pop_std_dev1'], len(data1), data2.mean(), params['pop_std_dev2'], len(data2), confidence_level)
+                    sample_mean1, sample_size1 = data1.mean(), len(data1)
+                    sample_mean2, sample_size2 = data2.mean(), len(data2)
+                    lower_bound, upper_bound = ci_diff_means_sigma_known(sample_mean1, params['pop_std_dev1'], sample_size1, sample_mean2, params['pop_std_dev2'], sample_size2, confidence_level)
                 else:
-                    lower_bound, upper_bound = ci_diff_means_sigma_known(params['sample_mean1'], params['pop_std_dev1'], params['sample_size1'], params['sample_mean2'], params['pop_std_dev2'], params['sample_size2'], confidence_level)
+                    sample_mean1, sample_size1 = params['sample_mean1'], params['sample_size1']
+                    sample_mean2, sample_size2 = params['sample_mean2'], params['sample_size2']
+                    lower_bound, upper_bound = ci_diff_means_sigma_known(sample_mean1, params['pop_std_dev1'], sample_size1, sample_mean2, params['pop_std_dev2'], sample_size2, confidence_level)
+
+                alpha = 1 - confidence_level
+                z_critical = stats.norm.ppf(1 - alpha / 2)
+                sample_statistic = sample_mean1 - sample_mean2
+                std_error = np.sqrt((params['pop_std_dev1']**2 / sample_size1) + (params['pop_std_dev2']**2 / sample_size2))
+                margin_of_error = z_critical * std_error
 
             elif selected_ci_type == 'Difference Between Two Means (Independent, sigma unknown, equal variances)':
                 if input_method == 'Raw Data':
                     data1 = get_data_from_col_string(params['data_column1'])
                     data2 = get_data_from_col_string(params['data_column2'])
-                    lower_bound, upper_bound = ci_diff_means_sigma_unknown_equal_var(data1.mean(), data1.std(), len(data1), data2.mean(), data2.std(), len(data2), confidence_level)
+                    sample_mean1, sample_std_dev1, sample_size1 = data1.mean(), data1.std(), len(data1)
+                    sample_mean2, sample_std_dev2, sample_size2 = data2.mean(), data2.std(), len(data2)
+                    lower_bound, upper_bound = ci_diff_means_sigma_unknown_equal_var(sample_mean1, sample_std_dev1, sample_size1, sample_mean2, sample_std_dev2, sample_size2, confidence_level)
                 else:
-                    lower_bound, upper_bound = ci_diff_means_sigma_unknown_equal_var(params['sample_mean1'], params['sample_std_dev1'], params['sample_size1'], params['sample_mean2'], params['sample_std_dev2'], params['sample_size2'], confidence_level)
+                    sample_mean1, sample_std_dev1, sample_size1 = params['sample_mean1'], params['sample_std_dev1'], params['sample_size1']
+                    sample_mean2, sample_std_dev2, sample_size2 = params['sample_mean2'], params['sample_std_dev2'], params['sample_size2']
+                    lower_bound, upper_bound = ci_diff_means_sigma_unknown_equal_var(sample_mean1, sample_std_dev1, sample_size1, sample_mean2, sample_std_dev2, sample_size2, confidence_level)
+
+                alpha = 1 - confidence_level
+                pooled_std_dev = np.sqrt(((sample_size1 - 1) * sample_std_dev1**2 + (sample_size2 - 1) * sample_std_dev2**2) / (sample_size1 + sample_size2 - 2))
+                t_critical = stats.t.ppf(1 - alpha / 2, df=sample_size1 + sample_size2 - 2)
+                sample_statistic = sample_mean1 - sample_mean2
+                std_error = pooled_std_dev * np.sqrt((1 / sample_size1) + (1 / sample_size2))
+                margin_of_error = t_critical * std_error
 
             elif selected_ci_type == 'Difference Between Two Means (Independent, sigma unknown, unequal variances)':
                 if input_method == 'Raw Data':
                     data1 = get_data_from_col_string(params['data_column1'])
                     data2 = get_data_from_col_string(params['data_column2'])
-                    lower_bound, upper_bound = ci_diff_means_sigma_unknown_unequal_var(data1.mean(), data1.std(), len(data1), data2.mean(), data2.std(), len(data2), confidence_level)
+                    sample_mean1, sample_std_dev1, sample_size1 = data1.mean(), data1.std(), len(data1)
+                    sample_mean2, sample_std_dev2, sample_size2 = data2.mean(), data2.std(), len(data2)
+                    lower_bound, upper_bound = ci_diff_means_sigma_unknown_unequal_var(sample_mean1, sample_std_dev1, sample_size1, sample_mean2, sample_std_dev2, sample_size2, confidence_level)
                 else:
-                    lower_bound, upper_bound = ci_diff_means_sigma_unknown_unequal_var(params['sample_mean1'], params['sample_std_dev1'], params['sample_size1'], params['sample_mean2'], params['sample_std_dev2'], params['sample_size2'], confidence_level)
+                    sample_mean1, sample_std_dev1, sample_size1 = params['sample_mean1'], params['sample_std_dev1'], params['sample_size1']
+                    sample_mean2, sample_std_dev2, sample_size2 = params['sample_mean2'], params['sample_std_dev2'], params['sample_size2']
+                    lower_bound, upper_bound = ci_diff_means_sigma_unknown_unequal_var(sample_mean1, sample_std_dev1, sample_size1, sample_mean2, sample_std_dev2, sample_size2, confidence_level)
+
+                alpha = 1 - confidence_level
+                sample_statistic = sample_mean1 - sample_mean2
+                se1_sq = (sample_std_dev1**2) / sample_size1
+                se2_sq = (sample_std_dev2**2) / sample_size2
+                std_error = np.sqrt(se1_sq + se2_sq)
+                welch_df = ((se1_sq + se2_sq)**2) / ((se1_sq**2 / (sample_size1 - 1)) + (se2_sq**2 / (sample_size2 - 1)))
+                t_critical = stats.t.ppf(1 - alpha / 2, df=welch_df)
+                margin_of_error = t_critical * std_error
 
             elif selected_ci_type == 'Difference Between Two Proportions':
                 lower_bound, upper_bound = ci_diff_proportions(params['num_successes1'], params['num_trials1'], params['num_successes2'], params['num_trials2'], confidence_level)
+                prop1 = params['num_successes1'] / params['num_trials1']
+                prop2 = params['num_successes2'] / params['num_trials2']
+                sample_statistic = prop1 - prop2
+                alpha = 1 - confidence_level
+                z_critical = stats.norm.ppf(1 - alpha / 2)
+                std_error = np.sqrt((prop1 * (1 - prop1) / params['num_trials1']) + (prop2 * (1 - prop2) / params['num_trials2']))
+                margin_of_error = z_critical * std_error
 
             elif selected_ci_type == 'Paired Differences':
                 if input_method == 'Raw Data':
                     data1 = get_data_from_col_string(params['data_column1'])
                     data2 = get_data_from_col_string(params['data_column2'])
+                    differences = np.array(data1) - np.array(data2)
+                    mean_difference = np.mean(differences)
+                    std_dev_difference = np.std(differences, ddof=1)
+                    sample_size_difference = len(differences)
                     lower_bound, upper_bound = ci_paired_differences(data1, data2, confidence_level)
                 else:
+                    mean_difference = params['mean_difference']
+                    std_dev_difference = params['std_dev_difference']
+                    sample_size_difference = params['sample_size_difference']
                     lower_bound, upper_bound = ci_paired_differences_summary(
-                        params['mean_difference'],
-                        params['std_dev_difference'],
-                        params['sample_size_difference'],
+                        mean_difference,
+                        std_dev_difference,
+                        sample_size_difference,
                         confidence_level
                     )
 
+                alpha = 1 - confidence_level
+                t_critical = stats.t.ppf(1 - alpha / 2, df=sample_size_difference - 1)
+                sample_statistic = mean_difference
+                std_error = std_dev_difference / np.sqrt(sample_size_difference)
+                margin_of_error = t_critical * std_error
+
             st.success(f"Confidence Interval ({confidence_level*100:.0f}%): ({lower_bound:.4f}, {upper_bound:.4f})")
+            if sample_statistic is not None and std_error is not None and margin_of_error is not None:
+                sample_stat_symbol_map = {
+                    'Mean (sigma unknown) - t-interval': 'x̄',
+                    'Proportion': 'p̂',
+                    'Difference Between Two Means (Independent, sigma known)': 'x̄₁ - x̄₂',
+                    'Difference Between Two Means (Independent, sigma unknown, equal variances)': 'x̄₁ - x̄₂',
+                    'Difference Between Two Means (Independent, sigma unknown, unequal variances)': 'x̄₁ - x̄₂',
+                    'Difference Between Two Proportions': 'p̂₁ - p̂₂',
+                    'Paired Differences': 'd̄'
+                }
+                sample_stat_symbol = sample_stat_symbol_map.get(selected_ci_type, 'Statistic')
+                summary_df = pd.DataFrame(
+                    {
+                        'Metric': ['Sample Statistic', 'Standard Error', 'Margin of Error'],
+                        'Symbol': [sample_stat_symbol, 'SE', 'ME'],
+                        'Value': [sample_statistic, std_error, margin_of_error]
+                    }
+                )
+                st.write("Summary")
+                summary_display_df = summary_df.copy()
+                summary_display_df['Value'] = summary_display_df['Value'].map(lambda v: f"{v:.6f}")
+                st.markdown(summary_display_df.to_html(index=False), unsafe_allow_html=True)
 
         except ValueError as ve:
             st.error(f"Input Error: {ve}")
@@ -3742,7 +3919,7 @@ elif selected_tab == "Hypothesis Testing":
     else:
         ht_input_method_options = ['Raw Data', 'Summary Statistics']
 
-    st.subheader("Parameters")
+    st.subheader("Inputs")
     
     input_method = st.radio("Input Type:", options=ht_input_method_options, key="ht_input_method")
 
@@ -6295,7 +6472,7 @@ elif selected_tab == "Simulations":
                 ax.set_xticks(current_ticks)
             
             # Determine decision
-            reject = p_value < alpha
+            reject = p_value <= alpha
             
             ax.legend(fontsize=10, loc='upper right')
             ax.grid(True, alpha=0.3)
@@ -6362,13 +6539,13 @@ elif selected_tab == "Simulations":
             
             if reject:
                 st.error(f"""
-                🔴 **Reject the null hypothesis**: The p-value ({p_value:.4f}) is less than the significance 
+                🔴 **Reject the null hypothesis**: The p-value ({p_value:.4f}) is less than or equal to the significance 
                 level ({alpha}), indicating that the observed result is statistically significant. The test 
                 statistic falls in the rejection region.
                 """)
             else:
                 st.success(f"""
-                🟢 **Fail to reject the null hypothesis**: The p-value ({p_value:.4f}) is greater than or equal 
+                🟢 **Fail to reject the null hypothesis**: The p-value ({p_value:.4f}) is strictly greater 
                 to the significance level ({alpha}), indicating that we do not have sufficient evidence to reject 
                 the null hypothesis. The test statistic does not fall in the rejection region.
                 """)
@@ -6378,8 +6555,8 @@ elif selected_tab == "Simulations":
             - Move the slider to see how different test statistics affect the p-value
             - The p-value represents the probability of observing a test statistic as extreme or more extreme 
               than the observed value, assuming the null hypothesis is true
-            - When p-value < α, we reject the null hypothesis
-            - When p-value ≥ α, we fail to reject the null hypothesis
+            - When p-value ≤ α, we reject the null hypothesis
+            - When p-value > α, we fail to reject the null hypothesis
             """)
             
         except Exception as e:
@@ -7040,7 +7217,7 @@ elif selected_tab == "Simulations":
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.write("**Group 1 Parameters**")
+            st.write("**Group 1 Inputs**")
             mean1 = st.slider(
                 "Group 1 Mean", 
                 min_value=0.0, 
@@ -7067,7 +7244,7 @@ elif selected_tab == "Simulations":
             )
         
         with col2:
-            st.write("**Group 2 Parameters**")
+            st.write("**Group 2 Inputs**")
             mean2 = st.slider(
                 "Group 2 Mean", 
                 min_value=0.0, 
@@ -7094,7 +7271,7 @@ elif selected_tab == "Simulations":
             )
         
         with col3:
-            st.write("**Group 3 Parameters**")
+            st.write("**Group 3 Inputs**")
             mean3 = st.slider(
                 "Group 3 Mean", 
                 min_value=0.0, 
