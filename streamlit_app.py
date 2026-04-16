@@ -13,6 +13,15 @@ import plotly.graph_objects as go
 PLOTLY_QUARTILE_METHOD = "hazen"
 PANDAS_QUARTILE_INTERPOLATION = "linear"
 
+
+def get_update_batches(num_batches, max_updates=12):
+    """Return evenly spaced batch indices to limit expensive redraws."""
+    if num_batches <= 0:
+        return set()
+    if num_batches <= max_updates:
+        return set(range(num_batches))
+    return set(np.linspace(0, num_batches - 1, num=max_updates, dtype=int).tolist())
+
 def compute_quartile(series, q):
     values = pd.to_numeric(series, errors='coerce').dropna().to_numpy()
     if values.size == 0:
@@ -5220,24 +5229,25 @@ elif selected_tab == "Simulations":
         
         if st.button("Run Simulation", key="sampling_means_button"):
             try:
+                rng = np.random.default_rng()
                 # Generate population based on selected distribution
                 pop_size = 100000
                 
                 if pop_dist_type == "Normal":
-                    population = np.random.normal(loc=50, scale=15, size=pop_size)
+                    population = rng.normal(loc=50, scale=15, size=pop_size)
                     pop_color = 'steelblue'
                 elif pop_dist_type == "Right Skewed (Exponential)":
-                    population = np.random.exponential(scale=20, size=pop_size)
+                    population = rng.exponential(scale=20, size=pop_size)
                     pop_color = 'coral'
                 elif pop_dist_type == "Left Skewed (Beta)":
-                    population = np.random.beta(a=8, b=2, size=pop_size) * 100
+                    population = rng.beta(a=8, b=2, size=pop_size) * 100
                     pop_color = 'mediumpurple'
                 elif pop_dist_type == "Uniform":
-                    population = np.random.uniform(low=0, high=100, size=pop_size)
+                    population = rng.uniform(low=0, high=100, size=pop_size)
                     pop_color = 'lightgreen'
                 else:  # Bimodal
-                    pop1 = np.random.normal(loc=30, scale=8, size=pop_size//2)
-                    pop2 = np.random.normal(loc=70, scale=8, size=pop_size//2)
+                    pop1 = rng.normal(loc=30, scale=8, size=pop_size//2)
+                    pop2 = rng.normal(loc=70, scale=8, size=pop_size//2)
                     population = np.concatenate([pop1, pop2])
                     pop_color = 'gold'
                 
@@ -5257,6 +5267,7 @@ elif selected_tab == "Simulations":
                 # Generate samples in batches
                 batch_size = 100
                 num_batches = int(np.ceil(num_samples_means / batch_size))
+                update_batches = get_update_batches(num_batches, max_updates=12)
                 
                 for batch in range(num_batches):
                     # Update progress
@@ -5266,15 +5277,26 @@ elif selected_tab == "Simulations":
                     
                     # Generate batch of samples
                     samples_in_batch = min(batch_size, num_samples_means - batch * batch_size)
-                    
-                    for _ in range(samples_in_batch):
-                        # Draw a random sample from the population
-                        sample = np.random.choice(population, size=sample_size_means, replace=False)
-                        sample_mean = np.mean(sample)
-                        sample_means.append(sample_mean)
+
+                    # Vectorized sampling per distribution to reduce Python-loop overhead.
+                    if pop_dist_type == "Normal":
+                        sample_matrix = rng.normal(loc=50, scale=15, size=(samples_in_batch, sample_size_means))
+                    elif pop_dist_type == "Right Skewed (Exponential)":
+                        sample_matrix = rng.exponential(scale=20, size=(samples_in_batch, sample_size_means))
+                    elif pop_dist_type == "Left Skewed (Beta)":
+                        sample_matrix = rng.beta(a=8, b=2, size=(samples_in_batch, sample_size_means)) * 100
+                    elif pop_dist_type == "Uniform":
+                        sample_matrix = rng.uniform(low=0, high=100, size=(samples_in_batch, sample_size_means))
+                    else:
+                        mix_mask = rng.random((samples_in_batch, sample_size_means)) < 0.5
+                        sample_a = rng.normal(loc=30, scale=8, size=(samples_in_batch, sample_size_means))
+                        sample_b = rng.normal(loc=70, scale=8, size=(samples_in_batch, sample_size_means))
+                        sample_matrix = np.where(mix_mask, sample_a, sample_b)
+
+                    sample_means.extend(np.mean(sample_matrix, axis=1).tolist())
                     
                     # Update plot every few batches
-                    if (batch + 1) % 3 == 0 or batch == num_batches - 1:
+                    if batch in update_batches or batch == num_batches - 1:
                         with plot_placeholder.container():
                             # Create figure with two subplots
                             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
@@ -5409,6 +5431,7 @@ elif selected_tab == "Simulations":
         # Add a button to run the simulation
         if st.button("Run Simulation", key="sampling_dist_button"):
             try:
+                rng = np.random.default_rng()
                 # Initialize session state for animation if not exists
                 if 'sample_proportions' not in st.session_state:
                     st.session_state.sample_proportions = []
@@ -5419,93 +5442,95 @@ elif selected_tab == "Simulations":
                 stats_placeholder = st.empty()
                 
                 # Store all sample proportions
-                sample_proportions = []
+                sample_matrix = rng.binomial(1, pop_proportion, size=(num_samples, sample_size))
+                sample_proportions = np.mean(sample_matrix, axis=1)
                 
                 # Progress bar
                 progress_bar = st.progress(0)
                 status_text = st.empty()
+
+                # Limit redraw count to keep UI responsive.
+                update_points = np.linspace(0, num_samples - 1, num=min(20, num_samples), dtype=int)
+                update_points = sorted(set(update_points.tolist()))
                 
                 # Simulate drawing samples
-                for i in range(num_samples):
-                    # Draw a random sample (1 = success, 0 = failure)
-                    sample = np.random.binomial(1, pop_proportion, sample_size)
-                    sample_prop = np.mean(sample)
-                    sample_proportions.append(sample_prop)
-                    
+                for i in update_points:
                     # Update progress
                     progress = (i + 1) / num_samples
                     progress_bar.progress(progress)
                     status_text.text(f"Drawing sample {i+1} of {num_samples}...")
-                    
-                    # Show visualization of current sample every 10 samples or on last sample
-                    if (i + 1) % max(1, num_samples // 20) == 0 or i == num_samples - 1:
-                        # Visualize the current sample
-                        with sample_viz_placeholder.container():
-                            st.write("---")
-                            st.write(f"**Current Sample #{i+1}**: Sample Proportion = {sample_prop:.4f}")
-                            
-                            # Create a visual representation of the sample
-                            fig_sample, ax_sample = plt.subplots(figsize=(12, 2))
-                            
-                            # Show first 100 observations max for visualization
-                            display_sample = sample[:min(100, len(sample))]
-                            colors = ['green' if x == 1 else 'red' for x in display_sample]
-                            x_pos = np.arange(len(display_sample))
-                            
-                            ax_sample.scatter(x_pos, [0.5] * len(display_sample), c=colors, s=50, alpha=0.7)
-                            ax_sample.set_ylim(0, 1)
-                            ax_sample.set_xlim(-1, len(display_sample))
-                            ax_sample.set_yticks([])
-                            ax_sample.set_xlabel('Observation Number', fontsize=10)
-                            ax_sample.set_title(f'Sample Visualization (Green = Success, Red = Failure) - Showing {len(display_sample)} of {sample_size} observations', 
-                                              fontsize=11, fontweight='bold')
-                            ax_sample.grid(True, alpha=0.3, axis='x')
-                            
-                            st.pyplot(fig_sample)
-                            plt.close(fig_sample)
-                        
-                        # Update sampling distribution plot
-                        with dist_plot_placeholder.container():
-                            st.write("---")
-                            st.write("**Sampling Distribution of Sample Proportions**")
-                            
-                            fig_dist, ax_dist = plt.subplots(figsize=(12, 6))
-                            
-                            # Plot histogram of sample proportions
-                            ax_dist.hist(sample_proportions, bins=min(30, max(10, len(sample_proportions)//5)), 
-                                        color='steelblue', alpha=0.7, edgecolor='black', density=True,
-                                        label=f'Sample Proportions (n={len(sample_proportions)})')
-                            
-                            # Overlay theoretical normal distribution
-                            if len(sample_proportions) > 1:
-                                mean_prop = pop_proportion
-                                std_prop = np.sqrt(pop_proportion * (1 - pop_proportion) / sample_size)
-                                
-                                x_norm = np.linspace(max(0, mean_prop - 4*std_prop), 
-                                                    min(1, mean_prop + 4*std_prop), 1000)
-                                y_norm = stats.norm.pdf(x_norm, mean_prop, std_prop)
-                                
-                                ax_dist.plot(x_norm, y_norm, 'r-', linewidth=2, 
-                                           label=f'Theoretical N(μ={mean_prop:.3f}, σ={std_prop:.4f})')
-                            
-                            # Add vertical line at population proportion
-                            ax_dist.axvline(pop_proportion, color='green', linestyle='--', linewidth=2, 
-                                          label=f'Population Proportion (p={pop_proportion})')
-                            
-                            # Add vertical line at mean of sample proportions
-                            if len(sample_proportions) > 0:
-                                ax_dist.axvline(np.mean(sample_proportions), color='orange', linestyle='--', linewidth=2,
-                                              label=f'Mean of Sample Proportions ({np.mean(sample_proportions):.4f})')
-                            
-                            ax_dist.set_xlabel('Sample Proportion', fontsize=12)
-                            ax_dist.set_ylabel('Density', fontsize=12)
-                            ax_dist.set_title('Sampling Distribution of Sample Proportions', 
-                                            fontsize=14, fontweight='bold')
-                            ax_dist.legend(fontsize=9)
-                            ax_dist.grid(True, alpha=0.3)
-                            
-                            st.pyplot(fig_dist)
-                            plt.close(fig_dist)
+
+                    sample = sample_matrix[i]
+                    sample_prop = sample_proportions[i]
+                    current_props = sample_proportions[:i + 1]
+
+                    # Visualize the current sample
+                    with sample_viz_placeholder.container():
+                        st.write("---")
+                        st.write(f"**Current Sample #{i+1}**: Sample Proportion = {sample_prop:.4f}")
+
+                        # Create a visual representation of the sample
+                        fig_sample, ax_sample = plt.subplots(figsize=(12, 2))
+
+                        # Show first 100 observations max for visualization
+                        display_sample = sample[:min(100, len(sample))]
+                        colors = ['green' if x == 1 else 'red' for x in display_sample]
+                        x_pos = np.arange(len(display_sample))
+
+                        ax_sample.scatter(x_pos, [0.5] * len(display_sample), c=colors, s=50, alpha=0.7)
+                        ax_sample.set_ylim(0, 1)
+                        ax_sample.set_xlim(-1, len(display_sample))
+                        ax_sample.set_yticks([])
+                        ax_sample.set_xlabel('Observation Number', fontsize=10)
+                        ax_sample.set_title(f'Sample Visualization (Green = Success, Red = Failure) - Showing {len(display_sample)} of {sample_size} observations',
+                                          fontsize=11, fontweight='bold')
+                        ax_sample.grid(True, alpha=0.3, axis='x')
+
+                        st.pyplot(fig_sample)
+                        plt.close(fig_sample)
+
+                    # Update sampling distribution plot
+                    with dist_plot_placeholder.container():
+                        st.write("---")
+                        st.write("**Sampling Distribution of Sample Proportions**")
+
+                        fig_dist, ax_dist = plt.subplots(figsize=(12, 6))
+
+                        # Plot histogram of sample proportions
+                        ax_dist.hist(current_props, bins=min(30, max(10, len(current_props)//5)),
+                                    color='steelblue', alpha=0.7, edgecolor='black', density=True,
+                                    label=f'Sample Proportions (n={len(current_props)})')
+
+                        # Overlay theoretical normal distribution
+                        if len(current_props) > 1:
+                            mean_prop = pop_proportion
+                            std_prop = np.sqrt(pop_proportion * (1 - pop_proportion) / sample_size)
+
+                            x_norm = np.linspace(max(0, mean_prop - 4*std_prop),
+                                                min(1, mean_prop + 4*std_prop), 1000)
+                            y_norm = stats.norm.pdf(x_norm, mean_prop, std_prop)
+
+                            ax_dist.plot(x_norm, y_norm, 'r-', linewidth=2,
+                                       label=f'Theoretical N(μ={mean_prop:.3f}, σ={std_prop:.4f})')
+
+                        # Add vertical line at population proportion
+                        ax_dist.axvline(pop_proportion, color='green', linestyle='--', linewidth=2,
+                                      label=f'Population Proportion (p={pop_proportion})')
+
+                        # Add vertical line at mean of sample proportions
+                        if len(current_props) > 0:
+                            ax_dist.axvline(np.mean(current_props), color='orange', linestyle='--', linewidth=2,
+                                          label=f'Mean of Sample Proportions ({np.mean(current_props):.4f})')
+
+                        ax_dist.set_xlabel('Sample Proportion', fontsize=12)
+                        ax_dist.set_ylabel('Density', fontsize=12)
+                        ax_dist.set_title('Sampling Distribution of Sample Proportions',
+                                        fontsize=14, fontweight='bold')
+                        ax_dist.legend(fontsize=9)
+                        ax_dist.grid(True, alpha=0.3)
+
+                        st.pyplot(fig_dist)
+                        plt.close(fig_dist)
                 
                 # Clear progress indicators
                 progress_bar.empty()
@@ -6628,6 +6653,7 @@ elif selected_tab == "Simulations":
         
         if st.button("Run Simulation", key="run_diff_prop_sim"):
             try:
+                rng = np.random.default_rng()
                 # Create placeholders for progressive updates
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -6640,6 +6666,7 @@ elif selected_tab == "Simulations":
                 # Generate samples in batches
                 batch_size = 100
                 num_batches = int(np.ceil(num_samples_diff_prop / batch_size))
+                update_batches = get_update_batches(num_batches, max_updates=12)
                 
                 for batch in range(num_batches):
                     # Update progress
@@ -6649,22 +6676,14 @@ elif selected_tab == "Simulations":
                     
                     # Generate batch of samples
                     samples_in_batch = min(batch_size, num_samples_diff_prop - batch * batch_size)
-                    
-                    for _ in range(samples_in_batch):
-                        # Generate sample from population 1
-                        sample1 = np.random.binomial(1, p1_pop, n1_size)
-                        p1_hat = np.mean(sample1)
-                        
-                        # Generate sample from population 2
-                        sample2 = np.random.binomial(1, p2_pop, n2_size)
-                        p2_hat = np.mean(sample2)
-                        
-                        # Calculate difference
-                        diff = p1_hat - p2_hat
-                        differences.append(diff)
+
+                    sample1_batch = rng.binomial(1, p1_pop, size=(samples_in_batch, n1_size))
+                    sample2_batch = rng.binomial(1, p2_pop, size=(samples_in_batch, n2_size))
+                    batch_differences = np.mean(sample1_batch, axis=1) - np.mean(sample2_batch, axis=1)
+                    differences.extend(batch_differences.tolist())
                     
                     # Update plot every few batches
-                    if (batch + 1) % 3 == 0 or batch == num_batches - 1:
+                    if batch in update_batches or batch == num_batches - 1:
                         with plot_placeholder.container():
                             fig, ax = plt.subplots(figsize=(12, 6))
                             
@@ -6843,6 +6862,7 @@ elif selected_tab == "Simulations":
         
         if st.button("Run Simulation", key="run_diff_mean_sim"):
             try:
+                rng = np.random.default_rng()
                 # Create placeholders for progressive updates
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -6857,6 +6877,7 @@ elif selected_tab == "Simulations":
                 # Generate samples in batches
                 batch_size = 100
                 num_batches = int(np.ceil(num_samples_diff_mean / batch_size))
+                update_batches = get_update_batches(num_batches, max_updates=12)
                 
                 for batch in range(num_batches):
                     # Update progress
@@ -6866,26 +6887,20 @@ elif selected_tab == "Simulations":
                     
                     # Generate batch of samples
                     samples_in_batch = min(batch_size, num_samples_diff_mean - batch * batch_size)
-                    
-                    for _ in range(samples_in_batch):
-                        # Generate sample from population 1
-                        sample1 = np.random.normal(mu1_pop, sigma1_pop, n1_mean_size)
-                        mean1 = np.mean(sample1)
-                        s1 = np.std(sample1, ddof=1)  # Sample std dev
-                        
-                        # Generate sample from population 2
-                        sample2 = np.random.normal(mu2_pop, sigma2_pop, n2_mean_size)
-                        mean2 = np.mean(sample2)
-                        s2 = np.std(sample2, ddof=1)  # Sample std dev
-                        
-                        # Calculate difference
-                        diff = mean1 - mean2
-                        differences.append(diff)
-                        sample_s1_list.append(s1)
-                        sample_s2_list.append(s2)
+
+                    sample1_batch = rng.normal(mu1_pop, sigma1_pop, size=(samples_in_batch, n1_mean_size))
+                    sample2_batch = rng.normal(mu2_pop, sigma2_pop, size=(samples_in_batch, n2_mean_size))
+                    mean1_batch = np.mean(sample1_batch, axis=1)
+                    mean2_batch = np.mean(sample2_batch, axis=1)
+                    s1_batch = np.std(sample1_batch, axis=1, ddof=1)
+                    s2_batch = np.std(sample2_batch, axis=1, ddof=1)
+
+                    differences.extend((mean1_batch - mean2_batch).tolist())
+                    sample_s1_list.extend(s1_batch.tolist())
+                    sample_s2_list.extend(s2_batch.tolist())
                     
                     # Update plot every few batches
-                    if (batch + 1) % 3 == 0 or batch == num_batches - 1:
+                    if batch in update_batches or batch == num_batches - 1:
                         with plot_placeholder.container():
                             fig, ax = plt.subplots(figsize=(12, 6))
                             
