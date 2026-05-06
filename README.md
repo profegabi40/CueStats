@@ -119,6 +119,10 @@ See [ADA Compliance Review](ADA_COMPLIANCE_REVIEW_FINAL.md) for detailed accessi
    - If using `./restart_streamlit.sh`, use `http://localhost:8054`
    - The app should launch automatically
 
+## Deploy
+
+For deployment instructions, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
+
 ## 📦 Dependencies
 
 Core libraries:

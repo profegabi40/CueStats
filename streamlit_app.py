@@ -3622,7 +3622,7 @@ elif selected_tab == "Confidence Intervals":
 
     ci_type_options = [
         'Mean (sigma unknown) - t-interval',
-        'Proportion',
+        'One Proportion',
         'Difference Between Two Means (Independent, sigma known)',
         'Difference Between Two Means (Independent, sigma unknown, equal variances)',
         'Difference Between Two Means (Independent, sigma unknown, unequal variances)',
@@ -3633,7 +3633,7 @@ elif selected_tab == "Confidence Intervals":
 
     # Determine input method options based on selected CI type
     input_method_options = []
-    if selected_ci_type in ['Proportion', 'Difference Between Two Proportions']:
+    if selected_ci_type in ['One Proportion', 'Difference Between Two Proportions']:
         input_method_options = ['Summary Statistics Input']
     else:
         input_method_options = ['Raw Data', 'Summary Statistics Input']
@@ -3659,7 +3659,7 @@ elif selected_tab == "Confidence Intervals":
             params['sample_std_dev'] = st.number_input('Sample Std Dev (s):', value=get_state_value('ci_mean_suk_sum_std_dev', 1.0), min_value=0.001, key="ci_mean_suk_sum_std_dev")
             params['sample_size'] = st.number_input('Sample Size (n):', value=get_state_value('ci_mean_suk_sum_size', 30), min_value=2, step=1, key="ci_mean_suk_sum_size")
 
-    elif selected_ci_type == 'Proportion':
+    elif selected_ci_type == 'One Proportion':
         # Only Summary Statistics Input
         params['num_successes'] = st.number_input('Number of Observed Successes (x):', value=get_state_value('ci_prop_sum_succ', 10), min_value=0, step=1, key="ci_prop_sum_succ")
         params['num_trials'] = st.number_input('Number of Trials (n):', value=get_state_value('ci_prop_sum_trials', 20), min_value=1, step=1, key="ci_prop_sum_trials")
@@ -3768,7 +3768,7 @@ elif selected_tab == "Confidence Intervals":
                 std_error = sample_std_dev / np.sqrt(sample_size)
                 margin_of_error = t_critical * std_error
 
-            elif selected_ci_type == 'Proportion':
+            elif selected_ci_type == 'One Proportion':
                 lower_bound, upper_bound = ci_proportion(params['num_successes'], params['num_trials'], confidence_level)
                 sample_statistic = params['num_successes'] / params['num_trials']
                 alpha = 1 - confidence_level
@@ -3874,7 +3874,7 @@ elif selected_tab == "Confidence Intervals":
             if sample_statistic is not None and std_error is not None and margin_of_error is not None:
                 sample_stat_symbol_map = {
                     'Mean (sigma unknown) - t-interval': 'x̄',
-                    'Proportion': 'p̂',
+                    'One Proportion': 'p̂',
                     'Difference Between Two Means (Independent, sigma known)': 'x̄₁ - x̄₂',
                     'Difference Between Two Means (Independent, sigma unknown, equal variances)': 'x̄₁ - x̄₂',
                     'Difference Between Two Means (Independent, sigma unknown, unequal variances)': 'x̄₁ - x̄₂',
@@ -7221,272 +7221,268 @@ elif selected_tab == "Simulations":
     with sim_tabs[9]:
         st.subheader("F-Statistic Explorer: Understanding Within-Group and Between-Group Variation")
         st.write("""
-        This interactive simulation helps you understand how the **F-statistic** in ANOVA is affected by:
-        - **Between-group variation**: How different the group means are from each other
-        - **Within-group variation**: How spread out the data is within each group
-        
-        The F-statistic measures the ratio: **F = (Between-Group Variability) / (Within-Group Variability)**
+        This side-by-side simulation keeps group means and sample sizes fixed and lets you compare
+        two scenarios with different **within-group standard deviations**.
+
+        Because the means are fixed, this view isolates how changes in within-group spread affect
+        the ANOVA F-statistic.
         """)
-        
-        # Create input columns
-        col1, col2, col3 = st.columns(3)
-        
+
+        fixed_means = [50.0, 55.0, 60.0]
+        fixed_sizes = [30, 30, 30]
+
+        st.write("**Fixed configuration (applies to both scenarios):**")
+        st.write(f"- Group means: {fixed_means}")
+        st.write(f"- Group sample sizes: {fixed_sizes}")
+
+        col1, col2 = st.columns(2)
+
         with col1:
-            st.write("**Group 1 Inputs**")
-            mean1 = st.slider(
-                "Group 1 Mean", 
-                min_value=0.0, 
-                max_value=100.0, 
-                value=50.0,
-                step=1.0,
-                help="Mean value for Group 1"
-            )
-            std1 = st.slider(
-                "Group 1 Std Dev", 
-                min_value=1.0, 
-                max_value=20.0, 
-                value=5.0,
+            std_scenario_a = st.slider(
+                "Scenario A Std Dev",
+                min_value=1.0,
+                max_value=20.0,
+                value=4.0,
                 step=0.5,
-                help="Standard deviation (spread) within Group 1"
+                help="Common within-group standard deviation for Scenario A",
+                key="f_explorer_std_a"
             )
-            n1 = st.slider(
-                "Group 1 Sample Size", 
-                min_value=5, 
-                max_value=50, 
-                value=30,
-                step=5,
-                help="Number of observations in Group 1"
-            )
-        
+
         with col2:
-            st.write("**Group 2 Inputs**")
-            mean2 = st.slider(
-                "Group 2 Mean", 
-                min_value=0.0, 
-                max_value=100.0, 
-                value=55.0,
-                step=1.0,
-                help="Mean value for Group 2"
-            )
-            std2 = st.slider(
-                "Group 2 Std Dev", 
-                min_value=1.0, 
-                max_value=20.0, 
-                value=5.0,
+            std_scenario_b = st.slider(
+                "Scenario B Std Dev",
+                min_value=1.0,
+                max_value=20.0,
+                value=10.0,
                 step=0.5,
-                help="Standard deviation (spread) within Group 2"
+                help="Common within-group standard deviation for Scenario B",
+                key="f_explorer_std_b"
             )
-            n2 = st.slider(
-                "Group 2 Sample Size", 
-                min_value=5, 
-                max_value=50, 
-                value=30,
-                step=5,
-                help="Number of observations in Group 2"
-            )
-        
-        with col3:
-            st.write("**Group 3 Inputs**")
-            mean3 = st.slider(
-                "Group 3 Mean", 
-                min_value=0.0, 
-                max_value=100.0, 
-                value=60.0,
-                step=1.0,
-                help="Mean value for Group 3"
-            )
-            std3 = st.slider(
-                "Group 3 Std Dev", 
-                min_value=1.0, 
-                max_value=20.0, 
-                value=5.0,
-                step=0.5,
-                help="Standard deviation (spread) within Group 3"
-            )
-            n3 = st.slider(
-                "Group 3 Sample Size", 
-                min_value=5, 
-                max_value=50, 
-                value=30,
-                step=5,
-                help="Number of observations in Group 3"
-            )
+
+        st.write("""
+        The F-statistic still follows: **F = (Between-Group Variability) / (Within-Group Variability)**.
+        Since means are fixed here, changing standard deviation primarily changes the denominator (MSW).
+        """)
+
+        if 'f_explorer_seed' not in st.session_state:
+            st.session_state.f_explorer_seed = 42
+
+        seed_col1, seed_col2 = st.columns([1, 2])
+        with seed_col1:
+            if st.button("Reseed Samples", key="f_explorer_reseed"):
+                st.session_state.f_explorer_seed = int(np.random.default_rng().integers(1, 2_147_483_647))
+        with seed_col2:
+            st.caption(f"Current sample seed: {st.session_state.f_explorer_seed}")
         
         try:
-            # Generate data for each group
-            np.random.seed(42)  # For reproducibility
-            group1_data = np.random.normal(mean1, std1, n1)
-            group2_data = np.random.normal(mean2, std2, n2)
-            group3_data = np.random.normal(mean3, std3, n3)
-            
-            # Combine all data
-            all_data = np.concatenate([group1_data, group2_data, group3_data])
-            group_labels = ['Group 1'] * n1 + ['Group 2'] * n2 + ['Group 3'] * n3
-            
-            # Calculate statistics for ANOVA manually
-            # Grand mean (overall mean)
-            grand_mean = np.mean(all_data)
-            
-            # Calculate Between-Group Sum of Squares (SSB)
-            ssb = n1 * (mean1 - grand_mean)**2 + n2 * (mean2 - grand_mean)**2 + n3 * (mean3 - grand_mean)**2
-            
-            # Calculate Within-Group Sum of Squares (SSW)
-            ssw = np.sum((group1_data - mean1)**2) + np.sum((group2_data - mean2)**2) + np.sum((group3_data - mean3)**2)
-            
-            # Degrees of freedom
-            k = 3  # Number of groups
-            n_total = n1 + n2 + n3
-            df_between = k - 1
-            df_within = n_total - k
-            
-            # Mean Squares
-            msb = ssb / df_between
-            msw = ssw / df_within
-            
-            # F-statistic
-            f_statistic = msb / msw if msw > 0 else 0
-            
-            # P-value
-            p_value = 1 - stats.f.cdf(f_statistic, df_between, df_within)
-            
-            # Perform actual ANOVA test
-            f_stat_scipy, p_value_scipy = stats.f_oneway(group1_data, group2_data, group3_data)
-            
-            # Create visualizations
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-            
-            # Plot 1: Dot plots for each group showing within-group variation
-            ax1.scatter(np.ones(n1) * 1, group1_data, alpha=0.6, s=50, color='#0173B2', label='Group 1')
-            ax1.scatter(np.ones(n2) * 2, group2_data, alpha=0.6, s=50, color='#DE8F05', label='Group 2')
-            ax1.scatter(np.ones(n3) * 3, group3_data, alpha=0.6, s=50, color='#029E73', label='Group 3')
-            
-            # Add horizontal lines for group means
-            ax1.hlines(mean1, 0.7, 1.3, colors='#0173B2', linewidth=3, label=f'Group 1 Mean = {mean1:.1f}')
-            ax1.hlines(mean2, 1.7, 2.3, colors='#DE8F05', linewidth=3, label=f'Group 2 Mean = {mean2:.1f}')
-            ax1.hlines(mean3, 2.7, 3.3, colors='#029E73', linewidth=3, label=f'Group 3 Mean = {mean3:.1f}')
-            
-            # Add grand mean line
-            ax1.axhline(grand_mean, color='red', linestyle='--', linewidth=2, label=f'Grand Mean = {grand_mean:.1f}')
-            
-            ax1.set_xlim(0.5, 3.5)
-            ax1.set_xticks([1, 2, 3])
-            ax1.set_xticklabels(['Group 1', 'Group 2', 'Group 3'])
-            ax1.set_ylabel('Value', fontsize=12)
-            ax1.set_title('Data Distribution by Group\n(Within-Group Spread vs Between-Group Differences)', 
-                         fontsize=13, fontweight='bold')
-            ax1.grid(True, alpha=0.3, axis='y')
-            ax1.legend(fontsize=8, loc='best')
-            
-            # Plot 2: Box plots showing variation
-            positions = [1, 2, 3]
-            bp = ax2.boxplot([group1_data, group2_data, group3_data], 
-                            positions=positions,
-                            widths=0.5,
-                            patch_artist=True,
-                            labels=['Group 1', 'Group 2', 'Group 3'])
-            
-            # Color the boxes
+            def compute_anova_components(groups):
+                all_values = np.concatenate(groups)
+                k_groups = len(groups)
+                n_total = len(all_values)
+                group_means = [np.mean(g) for g in groups]
+                group_sizes = [len(g) for g in groups]
+                grand_mean = float(np.mean(all_values))
+
+                ssb_local = float(sum(n * (m - grand_mean) ** 2 for n, m in zip(group_sizes, group_means)))
+                ssw_local = float(sum(np.sum((g - m) ** 2) for g, m in zip(groups, group_means)))
+
+                df_between_local = k_groups - 1
+                df_within_local = n_total - k_groups
+                msb_local = ssb_local / df_between_local
+                msw_local = ssw_local / df_within_local
+                f_local = msb_local / msw_local if msw_local > 0 else np.inf
+                p_local = 1 - stats.f.cdf(f_local, df_between_local, df_within_local)
+
+                return {
+                    "all_values": all_values,
+                    "group_means": group_means,
+                    "group_sizes": group_sizes,
+                    "grand_mean": grand_mean,
+                    "ssb": ssb_local,
+                    "ssw": ssw_local,
+                    "df_between": df_between_local,
+                    "df_within": df_within_local,
+                    "msb": msb_local,
+                    "msw": msw_local,
+                    "f": f_local,
+                    "p": p_local,
+                }
+
+            base_seed = int(st.session_state.f_explorer_seed)
+            rng_a = np.random.default_rng(base_seed)
+            rng_b = np.random.default_rng(base_seed + 1)
+
+            groups_a = [
+                rng_a.normal(fixed_means[0], std_scenario_a, fixed_sizes[0]),
+                rng_a.normal(fixed_means[1], std_scenario_a, fixed_sizes[1]),
+                rng_a.normal(fixed_means[2], std_scenario_a, fixed_sizes[2]),
+            ]
+            groups_b = [
+                rng_b.normal(fixed_means[0], std_scenario_b, fixed_sizes[0]),
+                rng_b.normal(fixed_means[1], std_scenario_b, fixed_sizes[1]),
+                rng_b.normal(fixed_means[2], std_scenario_b, fixed_sizes[2]),
+            ]
+
+            stats_a = compute_anova_components(groups_a)
+            stats_b = compute_anova_components(groups_b)
+
+            fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+            ax_raw_a, ax_raw_b = axes[0, 0], axes[0, 1]
+            ax_box_a, ax_box_b = axes[1, 0], axes[1, 1]
+
             colors = ['#0173B2', '#DE8F05', '#029E73']
-            for patch, color in zip(bp['boxes'], colors):
-                patch.set_facecolor(color)
-                patch.set_alpha(0.6)
-            
-            # Add grand mean line
-            ax2.axhline(grand_mean, color='red', linestyle='--', linewidth=2, label=f'Grand Mean = {grand_mean:.1f}')
-            
-            ax2.set_ylabel('Value', fontsize=12)
-            ax2.set_title('Box Plots Showing Spread and Separation', fontsize=13, fontweight='bold')
-            ax2.grid(True, alpha=0.3, axis='y')
-            ax2.legend(fontsize=10)
-            
+            group_names = ['Group 1', 'Group 2', 'Group 3']
+
+            def draw_raw_panel(ax, groups, summary_stats, std_value, title_prefix):
+                for idx, (group_values, color, group_name) in enumerate(zip(groups, colors, group_names), start=1):
+                    jitter = np.random.default_rng(idx).normal(0, 0.04, len(group_values))
+                    ax.scatter(
+                        np.ones(len(group_values)) * idx + jitter,
+                        group_values,
+                        alpha=0.6,
+                        s=30,
+                        color=color,
+                        label=group_name
+                    )
+                    ax.hlines(
+                        fixed_means[idx - 1],
+                        idx - 0.25,
+                        idx + 0.25,
+                        colors=color,
+                        linewidth=3,
+                    )
+
+                ax.axhline(
+                    summary_stats["grand_mean"],
+                    color='red',
+                    linestyle='--',
+                    linewidth=2,
+                    label=f"Grand Mean = {summary_stats['grand_mean']:.2f}"
+                )
+                ax.set_xlim(0.5, 3.5)
+                ax.set_xticks([1, 2, 3])
+                ax.set_xticklabels(group_names)
+                ax.set_ylabel('Value', fontsize=11)
+                ax.set_title(f"{title_prefix} Raw Data (Std Dev = {std_value:.1f})", fontsize=12, fontweight='bold')
+                ax.grid(True, alpha=0.3, axis='y')
+                ax.legend(fontsize=8, loc='best')
+
+            def draw_box_panel(ax, groups, summary_stats, std_value, title_prefix):
+                bp = ax.boxplot(
+                    groups,
+                    positions=[1, 2, 3],
+                    widths=0.55,
+                    patch_artist=True,
+                    labels=group_names,
+                )
+                for patch, color in zip(bp['boxes'], colors):
+                    patch.set_facecolor(color)
+                    patch.set_alpha(0.6)
+
+                ax.axhline(
+                    summary_stats["grand_mean"],
+                    color='red',
+                    linestyle='--',
+                    linewidth=2,
+                    label=f"Grand Mean = {summary_stats['grand_mean']:.2f}"
+                )
+                ax.set_ylabel('Value', fontsize=11)
+                ax.set_title(f"{title_prefix} Boxplots (Std Dev = {std_value:.1f})", fontsize=12, fontweight='bold')
+                ax.grid(True, alpha=0.3, axis='y')
+                ax.legend(fontsize=8, loc='best')
+
+            draw_raw_panel(ax_raw_a, groups_a, stats_a, std_scenario_a, "Scenario A")
+            draw_raw_panel(ax_raw_b, groups_b, stats_b, std_scenario_b, "Scenario B")
+            draw_box_panel(ax_box_a, groups_a, stats_a, std_scenario_a, "Scenario A")
+            draw_box_panel(ax_box_b, groups_b, stats_b, std_scenario_b, "Scenario B")
+
+            # Use common y-axis limits across each visual pair to make comparisons direct.
+            all_values_both_scenarios = np.concatenate(groups_a + groups_b)
+            y_min = float(np.min(all_values_both_scenarios))
+            y_max = float(np.max(all_values_both_scenarios))
+            y_padding = max(1.0, (y_max - y_min) * 0.08)
+            shared_ylim = (y_min - y_padding, y_max + y_padding)
+
+            ax_raw_a.set_ylim(shared_ylim)
+            ax_raw_b.set_ylim(shared_ylim)
+            ax_box_a.set_ylim(shared_ylim)
+            ax_box_b.set_ylim(shared_ylim)
+
             plt.tight_layout()
             st.pyplot(fig)
             
-            # Add comprehensive accessibility description
             st.caption(f"""
-            **Accessibility Description:** Two-panel F-statistic visualization. 
-            Left panel shows dot plot of individual data points for three groups: 
-            Group 1 (blue circles, n={n1}) centered at mean {mean1:.1f} with standard deviation {std1:.1f}, 
-            Group 2 (orange circles, n={n2}) centered at mean {mean2:.1f} with standard deviation {std2:.1f}, 
-            Group 3 (green circles, n={n3}) centered at mean {mean3:.1f} with standard deviation {std3:.1f}. 
-            Red dashed horizontal line marks grand mean at {grand_mean:.1f}. 
-            Right panel displays box plots showing distribution spread for each group with quartiles, 
-            median lines, and range whiskers. Grand mean marked with red dashed line. 
-            Current F-statistic is {f_statistic:.4f} with p-value {p_value:.6f}.
+            **Accessibility Description:** Four-panel F-statistic comparison with two scenarios.
+            Top row: raw-data scatter plots (Scenario A left, Scenario B right).
+            Bottom row: boxplots (Scenario A left, Scenario B right).
+            Both scenarios use fixed means {fixed_means} and fixed sample sizes {fixed_sizes}.
+            Scenario A uses standard deviation {std_scenario_a:.1f} with F = {stats_a['f']:.4f}, p = {stats_a['p']:.6f}.
+            Scenario B uses standard deviation {std_scenario_b:.1f} with F = {stats_b['f']:.4f}, p = {stats_b['p']:.6f}.
             """)
             plt.close()
             
-            # Display statistics
             st.write("---")
-            st.subheader("ANOVA Calculation Breakdown")
-            
-            col_a, col_b, col_c = st.columns(3)
-            
+            st.subheader("ANOVA Calculation Breakdown (Side-by-Side)")
+
+            col_a, col_b = st.columns(2)
+
             with col_a:
-                st.write("**Between-Group Variation**")
-                st.write(f"- Sum of Squares Between (SSB): {ssb:.2f}")
-                st.write(f"- Degrees of Freedom (df): {df_between}")
-                st.write(f"- Mean Square Between (MSB): {msb:.2f}")
-                st.write(f"- MSB measures how different the group means are from the grand mean")
+                st.write("**Scenario A**")
+                st.write(f"- Std Dev: {std_scenario_a:.2f}")
+                st.write(f"- SSB: {stats_a['ssb']:.2f}")
+                st.write(f"- SSW: {stats_a['ssw']:.2f}")
+                st.write(f"- MSB: {stats_a['msb']:.2f}")
+                st.write(f"- MSW: {stats_a['msw']:.2f}")
+                st.metric("F-value (A)", f"{stats_a['f']:.4f}")
+                st.metric("p-value (A)", f"{stats_a['p']:.6f}")
+                if stats_a['p'] < 0.05:
+                    st.success("Scenario A: Significant at α = 0.05")
+                else:
+                    st.info("Scenario A: Not significant at α = 0.05")
             
             with col_b:
-                st.write("**Within-Group Variation**")
-                st.write(f"- Sum of Squares Within (SSW): {ssw:.2f}")
-                st.write(f"- Degrees of Freedom (df): {df_within}")
-                st.write(f"- Mean Square Within (MSW): {msw:.2f}")
-                st.write(f"- MSW measures the average spread within groups")
-            
-            with col_c:
-                st.write("**F-Statistic**")
-                st.metric("F-value", f"{f_statistic:.4f}")
-                st.metric("p-value", f"{p_value:.6f}")
-                if p_value < 0.05:
-                    st.success("✓ Significant at α = 0.05")
+                st.write("**Scenario B**")
+                st.write(f"- Std Dev: {std_scenario_b:.2f}")
+                st.write(f"- SSB: {stats_b['ssb']:.2f}")
+                st.write(f"- SSW: {stats_b['ssw']:.2f}")
+                st.write(f"- MSB: {stats_b['msb']:.2f}")
+                st.write(f"- MSW: {stats_b['msw']:.2f}")
+                st.metric("F-value (B)", f"{stats_b['f']:.4f}")
+                st.metric("p-value (B)", f"{stats_b['p']:.6f}")
+                if stats_b['p'] < 0.05:
+                    st.success("Scenario B: Significant at α = 0.05")
                 else:
-                    st.info("Not significant at α = 0.05")
+                    st.info("Scenario B: Not significant at α = 0.05")
             
             st.write("---")
             st.write("**F-Statistic Formula:**")
-            st.latex(r"F = \frac{MSB}{MSW} = \frac{\text{Between-Group Variability}}{\text{Within-Group Variability}} = \frac{" + f"{msb:.2f}" + r"}{" + f"{msw:.2f}" + r"} = " + f"{f_statistic:.4f}")
+            st.latex(r"F = \frac{MSB}{MSW}")
+            st.write(f"Scenario A: F = {stats_a['msb']:.2f} / {stats_a['msw']:.2f} = {stats_a['f']:.4f}")
+            st.write(f"Scenario B: F = {stats_b['msb']:.2f} / {stats_b['msw']:.2f} = {stats_b['f']:.4f}")
             
             st.write("---")
             st.subheader("Key Insights")
             
-            st.write("**Why Within-Group Spread Matters:**")
-            st.write(f"- Current average within-group standard deviation: {np.mean([std1, std2, std3]):.2f}")
-            st.write(f"- If groups have **high within-group variation** (large spread), it's harder to detect differences between groups")
-            st.write(f"- This increases MSW (denominator), making F-statistic **smaller**")
-            st.write(f"- Try increasing the standard deviations to see F decrease!")
-            
-            st.write("")
-            st.write("**Why Between-Group Differences Matter:**")
-            mean_diff = np.std([mean1, mean2, mean3])
-            st.write(f"- Current separation between group means (std of means): {mean_diff:.2f}")
-            st.write(f"- If group means are **far apart**, there's clear evidence of group differences")
-            st.write(f"- This increases MSB (numerator), making F-statistic **larger**")
-            st.write(f"- Try spreading the group means further apart to see F increase!")
-            
-            st.write("")
-            st.write("**The F-Statistic Tells Us:**")
-            if f_statistic > 5:
-                st.write(f"- F = {f_statistic:.2f} is **large**, indicating that between-group differences are much larger than within-group variation")
-                st.write(f"- Strong evidence that at least one group mean is significantly different")
-            elif f_statistic > 2:
-                st.write(f"- F = {f_statistic:.2f} suggests moderate evidence of group differences")
-                st.write(f"- Between-group variation is larger than within-group variation")
+            st.write("**Comparison Focus:**")
+            st.write("- Group means and sample sizes are fixed, so between-group structure is held constant.")
+            st.write("- Increasing within-group standard deviation raises MSW (denominator).")
+            st.write("- As MSW rises, F typically decreases, making significance harder to achieve.")
+
+            if stats_a['f'] > stats_b['f']:
+                st.write(f"- Scenario A currently has the larger F-statistic ({stats_a['f']:.2f} vs {stats_b['f']:.2f}).")
+            elif stats_b['f'] > stats_a['f']:
+                st.write(f"- Scenario B currently has the larger F-statistic ({stats_b['f']:.2f} vs {stats_a['f']:.2f}).")
             else:
-                st.write(f"- F = {f_statistic:.2f} is **small**, indicating that between-group differences are not much larger than within-group variation")
-                st.write(f"- Weak evidence for differences between groups")
+                st.write(f"- Both scenarios currently have similar F-statistics ({stats_a['f']:.2f} vs {stats_b['f']:.2f}).")
             
             st.write("---")
             st.info("""
             **Try These Experiments:**
-            1. **Keep means the same, increase standard deviations** → F decreases (harder to detect differences)
-            2. **Keep standard deviations the same, spread means apart** → F increases (easier to detect differences)
-            3. **Make all means equal** → F approaches 0 (no between-group differences)
-            4. **Make standard deviations very small and means different** → F becomes very large (clear group differences)
-            
-            This demonstrates why ANOVA is sensitive to both the separation of means AND the consistency within groups!
+            1. Set Scenario A to low std dev and Scenario B to high std dev.
+            2. Observe that Scenario B usually has larger within-group spread and lower F.
+            3. Bring both std dev sliders together and observe F-statistics become more similar.
+
+            This view emphasizes the role of within-group variation in ANOVA when means are held fixed.
             """)
             
         except Exception as e:

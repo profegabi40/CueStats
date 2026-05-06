@@ -6,10 +6,10 @@ APP_FILE="streamlit_app.py"
 PID_FILE="streamlit.pid"
 LOG_FILE="streamlit.log"
 
-if [[ -x "/workspaces/CompuStats/.venv_new_20260410/bin/python" ]]; then
-  PYTHON_BIN="/workspaces/CompuStats/.venv_new_20260410/bin/python"
-elif [[ -x "/workspaces/CompuStats/.venv/bin/python" ]]; then
+if [[ -x "/workspaces/CompuStats/.venv/bin/python" ]]; then
   PYTHON_BIN="/workspaces/CompuStats/.venv/bin/python"
+elif [[ -x "/workspaces/CompuStats/.venv_new_20260410/bin/python" ]]; then
+  PYTHON_BIN="/workspaces/CompuStats/.venv_new_20260410/bin/python"
 elif [[ -x "/workspaces/CompuStats/venv/bin/python" ]]; then
   PYTHON_BIN="/workspaces/CompuStats/venv/bin/python"
 else
