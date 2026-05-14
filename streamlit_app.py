@@ -3567,7 +3567,12 @@ elif selected_tab == "Probability Distributions":
                 st.write(f"**Inputs**: {params}")
                 st.write(f"**Calculation Type**: {selected_calc_type}")
                 if x_val is not None:
-                    st.write(f"**x** = {x_val}")
+                    value_label = 'x'
+                    if selected_dist_type == 'Binomial':
+                        value_label = 'k'
+                    elif selected_calc_type in ['P(X < a)', 'P(X > a)']:
+                        value_label = 'a'
+                    st.write(f"**{value_label}** = {x_val}")
                 if a_val is not None:
                     st.write(f"**a** = {a_val}")
                 if b_val is not None:
