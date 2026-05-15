@@ -3421,6 +3421,10 @@ elif selected_tab == "Descriptive Statistics":
 elif selected_tab == "Probability Distributions":
     st.header("Probability Distributions")
 
+    # Float inputs in this section support up to 10 decimal places.
+    PROB_INPUT_STEP = 1e-10
+    PROB_INPUT_FORMAT = "%.10g"
+
     selected_dist_type = st.selectbox(
         "Select Distribution Type",
         options=['Normal', 'Binomial', 'Chi-square', 'Student-t', 'F-Distribution'],
@@ -3430,11 +3434,11 @@ elif selected_tab == "Probability Distributions":
     st.subheader("Distribution Inputs")
     params = {}
     if selected_dist_type == 'Normal':
-        params['mean'] = st.number_input('Mean (μ):', value=0.0, step=0.1, key="normal_mean")
-        params['std_dev'] = st.number_input('Std Dev (σ):', value=1.0, min_value=0.001, step=0.1, key="normal_std_dev")
+        params['mean'] = st.number_input('Mean (μ):', value=0.0, step=PROB_INPUT_STEP, format=PROB_INPUT_FORMAT, key="normal_mean")
+        params['std_dev'] = st.number_input('Std Dev (σ):', value=1.0, min_value=PROB_INPUT_STEP, step=PROB_INPUT_STEP, format=PROB_INPUT_FORMAT, key="normal_std_dev")
     elif selected_dist_type == 'Binomial':
         params['n'] = st.number_input('Trials (n):', value=10, min_value=1, step=1, key="binomial_n")
-        params['p'] = st.number_input('Prob. of Success (p):', value=0.5, min_value=0.0, max_value=1.0, step=0.01, key="binomial_p")
+        params['p'] = st.number_input('Prob. of Success (p):', value=0.5, min_value=0.0, max_value=1.0, step=PROB_INPUT_STEP, format=PROB_INPUT_FORMAT, key="binomial_p")
     elif selected_dist_type == 'Chi-square':
         params['df'] = st.number_input('Degrees of Freedom (df):', value=5, min_value=1, step=1, key="chi2_df")
     elif selected_dist_type == 'Student-t':
@@ -3475,25 +3479,25 @@ elif selected_tab == "Probability Distributions":
         if selected_dist_type == 'Binomial':
             x_val = st.number_input('Value of k:', value=0, min_value=0, step=1, key="prob_x_input")
         else:
-            x_val = st.number_input('Value of a:', value=0.0, step=0.1, key="prob_x_input")
+            x_val = st.number_input('Value of a:', value=0.0, step=PROB_INPUT_STEP, format=PROB_INPUT_FORMAT, key="prob_x_input")
     elif selected_calc_type in ['P(a < X < b)', 'P(a ≤ X ≤ b)']:
         col1, col2 = st.columns(2)
         with col1:
             if selected_dist_type == 'Binomial':
                 a_val = st.number_input('Value of a:', value=0, min_value=0, step=1, key="prob_a_input")
             else:
-                a_val = st.number_input('Value of a:', value=0.0, step=0.1, key="prob_a_input")
+                a_val = st.number_input('Value of a:', value=0.0, step=PROB_INPUT_STEP, format=PROB_INPUT_FORMAT, key="prob_a_input")
         with col2:
             if selected_dist_type == 'Binomial':
                 b_val = st.number_input('Value of b:', value=1, min_value=0, step=1, key="prob_b_input")
             else:
-                b_val = st.number_input('Value of b:', value=1.0, step=0.1, key="prob_b_input")
+                b_val = st.number_input('Value of b:', value=1.0, step=PROB_INPUT_STEP, format=PROB_INPUT_FORMAT, key="prob_b_input")
     elif selected_calc_type == 'Inverse Normal (find x from left-tail p)':
-        p_val = st.number_input('Left-tail probability p = P(X < x):', value=0.95, min_value=0.000001, max_value=0.999999, step=0.01, format="%.6f", key="prob_inverse_p_input")
+        p_val = st.number_input('Left-tail probability p = P(X < x):', value=0.95, min_value=PROB_INPUT_STEP, max_value=1.0 - PROB_INPUT_STEP, step=PROB_INPUT_STEP, format=PROB_INPUT_FORMAT, key="prob_inverse_p_input")
     elif selected_calc_type == 'Inverse Normal (find x from right-tail p)':
-        p_val = st.number_input('Right-tail probability p = P(X > x):', value=0.05, min_value=0.000001, max_value=0.999999, step=0.01, format="%.6f", key="prob_inverse_right_p_input")
+        p_val = st.number_input('Right-tail probability p = P(X > x):', value=0.05, min_value=PROB_INPUT_STEP, max_value=1.0 - PROB_INPUT_STEP, step=PROB_INPUT_STEP, format=PROB_INPUT_FORMAT, key="prob_inverse_right_p_input")
     elif selected_calc_type == 'Inverse Normal (find two values for in-between probability p)':
-        p_val = st.number_input('In-between probability p = P(lower < X < upper):', value=0.95, min_value=0.000001, max_value=0.999999, step=0.01, format="%.6f", key="prob_inverse_middle_p_input")
+        p_val = st.number_input('In-between probability p = P(lower < X < upper):', value=0.95, min_value=PROB_INPUT_STEP, max_value=1.0 - PROB_INPUT_STEP, step=PROB_INPUT_STEP, format=PROB_INPUT_FORMAT, key="prob_inverse_middle_p_input")
 
     if st.button("Calculate Probability and Plot", key="calc_prob_button"):
         st.subheader("Calculation Results")
